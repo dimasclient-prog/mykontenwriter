@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { AIProvider, AI_MODELS, AI_PROVIDER_NAMES } from '@/types/project';
 
 export default function MasterSettings() {
@@ -39,6 +40,7 @@ export default function MasterSettings() {
       aiProvider: provider,
       defaultModel: models[0],
     }));
+    setApiKeyStatus('idle');
   };
 
   const handleTestApiKey = async () => {
@@ -48,17 +50,35 @@ export default function MasterSettings() {
     }
 
     setApiKeyStatus('testing');
-    
-    // Simulate API key validation - in production this would call the actual API
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // For demo purposes, we check if the key has a reasonable format
-    const isValid = localSettings.apiKey.length >= 20;
-    
-    setApiKeyStatus(isValid ? 'ok' : 'failed');
-    toast[isValid ? 'success' : 'error'](
-      isValid ? 'API key is valid' : 'API key validation failed'
-    );
+
+    try {
+      const { data, error } = await supabase.functions.invoke('validate-api-key', {
+        body: {
+          apiKey: localSettings.apiKey,
+          provider: localSettings.aiProvider,
+        },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        setApiKeyStatus('failed');
+        toast.error('Failed to validate API key');
+        return;
+      }
+
+      const isValid = data?.valid === true;
+      setApiKeyStatus(isValid ? 'ok' : 'failed');
+      
+      if (isValid) {
+        toast.success('API key is valid');
+      } else {
+        toast.error(data?.error || 'API key validation failed');
+      }
+    } catch (err) {
+      console.error('Validation error:', err);
+      setApiKeyStatus('failed');
+      toast.error('Failed to validate API key');
+    }
   };
 
   const currentModels = AI_MODELS[localSettings.aiProvider];
