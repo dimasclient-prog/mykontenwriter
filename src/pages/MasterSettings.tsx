@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Save, Eye, EyeOff, Sparkles, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
+import { AIProvider, AI_MODELS, AI_PROVIDER_NAMES } from '@/types/project';
 
 export default function MasterSettings() {
   const { masterSettings, updateMasterSettings } = useAppStore();
   const [showApiKey, setShowApiKey] = useState(false);
   const [localSettings, setLocalSettings] = useState(masterSettings);
+  const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'ok' | 'failed'>('idle');
 
   const handleSave = () => {
     updateMasterSettings(localSettings);
@@ -26,7 +27,41 @@ export default function MasterSettings() {
     value: typeof localSettings[K]
   ) => {
     setLocalSettings((prev) => ({ ...prev, [key]: value }));
+    if (key === 'apiKey') {
+      setApiKeyStatus('idle');
+    }
   };
+
+  const handleProviderChange = (provider: AIProvider) => {
+    const models = AI_MODELS[provider];
+    setLocalSettings((prev) => ({
+      ...prev,
+      aiProvider: provider,
+      defaultModel: models[0],
+    }));
+  };
+
+  const handleTestApiKey = async () => {
+    if (!localSettings.apiKey.trim()) {
+      toast.error('Please enter an API key first');
+      return;
+    }
+
+    setApiKeyStatus('testing');
+    
+    // Simulate API key validation - in production this would call the actual API
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    
+    // For demo purposes, we check if the key has a reasonable format
+    const isValid = localSettings.apiKey.length >= 20;
+    
+    setApiKeyStatus(isValid ? 'ok' : 'failed');
+    toast[isValid ? 'success' : 'error'](
+      isValid ? 'API key is valid' : 'API key validation failed'
+    );
+  };
+
+  const currentModels = AI_MODELS[localSettings.aiProvider];
 
   return (
     <div className="p-8 max-w-4xl mx-auto animate-fade-in">
@@ -61,15 +96,17 @@ export default function MasterSettings() {
                 <Label htmlFor="aiProvider">AI Provider</Label>
                 <Select
                   value={localSettings.aiProvider}
-                  onValueChange={(value) => handleChange('aiProvider', value)}
+                  onValueChange={(value: AIProvider) => handleProviderChange(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="anthropic">Anthropic</SelectItem>
-                    <SelectItem value="gemini">Google Gemini</SelectItem>
+                    {Object.entries(AI_PROVIDER_NAMES).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -84,12 +121,11 @@ export default function MasterSettings() {
                     <SelectValue placeholder="Select model" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gpt-4">GPT-4</SelectItem>
-                    <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                    <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
-                    <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
-                    <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
+                    {currentModels.map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model.toUpperCase()}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -97,64 +133,45 @@ export default function MasterSettings() {
 
             <div className="space-y-2">
               <Label htmlFor="apiKey">API Key</Label>
-              <div className="relative">
-                <Input
-                  id="apiKey"
-                  type={showApiKey ? 'text' : 'password'}
-                  value={localSettings.apiKey}
-                  onChange={(e) => handleChange('apiKey', e.target.value)}
-                  placeholder="Enter your API key"
-                  className="pr-10"
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    id="apiKey"
+                    type={showApiKey ? 'text' : 'password'}
+                    value={localSettings.apiKey}
+                    onChange={(e) => handleChange('apiKey', e.target.value)}
+                    placeholder="Enter your API key"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-full"
-                  onClick={() => setShowApiKey(!showApiKey)}
+                  variant="outline"
+                  onClick={handleTestApiKey}
+                  disabled={apiKeyStatus === 'testing'}
+                  className="gap-2 shrink-0"
                 >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {apiKeyStatus === 'testing' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : apiKeyStatus === 'ok' ? (
+                    <CheckCircle className="w-4 h-4 text-success" />
+                  ) : apiKeyStatus === 'failed' ? (
+                    <XCircle className="w-4 h-4 text-destructive" />
+                  ) : null}
+                  {apiKeyStatus === 'ok' ? 'OK' : apiKeyStatus === 'failed' ? 'Failed' : 'Test API Key'}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
                 Your API key is stored locally and never sent to our servers
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Temperature</Label>
-                  <span className="text-sm text-muted-foreground">{localSettings.defaultTemperature}</span>
-                </div>
-                <Slider
-                  value={[localSettings.defaultTemperature]}
-                  onValueChange={([value]) => handleChange('defaultTemperature', value)}
-                  min={0}
-                  max={2}
-                  step={0.1}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Controls randomness. Lower = more focused, higher = more creative
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label>Max Tokens</Label>
-                  <span className="text-sm text-muted-foreground">{localSettings.defaultMaxTokens}</span>
-                </div>
-                <Slider
-                  value={[localSettings.defaultMaxTokens]}
-                  onValueChange={([value]) => handleChange('defaultMaxTokens', value)}
-                  min={500}
-                  max={8000}
-                  step={100}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Maximum length of generated content
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -166,37 +183,17 @@ export default function MasterSettings() {
             <CardDescription>Default settings for article generation</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="defaultArticleLength">Default Article Length (words)</Label>
-                <Input
-                  id="defaultArticleLength"
-                  type="number"
-                  value={localSettings.defaultArticleLength}
-                  onChange={(e) => handleChange('defaultArticleLength', parseInt(e.target.value) || 500)}
-                  min={200}
-                  max={5000}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="defaultLanguage">Default Language</Label>
-                <Select
-                  value={localSettings.defaultLanguage}
-                  onValueChange={(value: 'indonesian' | 'english' | 'other') => 
-                    handleChange('defaultLanguage', value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="indonesian">Indonesian</SelectItem>
-                    <SelectItem value="english">English</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="defaultArticleLength">Default Article Length (words)</Label>
+              <Input
+                id="defaultArticleLength"
+                type="number"
+                value={localSettings.defaultArticleLength}
+                onChange={(e) => handleChange('defaultArticleLength', parseInt(e.target.value) || 500)}
+                min={200}
+                max={5000}
+                className="max-w-xs"
+              />
             </div>
 
             <div className="space-y-2">

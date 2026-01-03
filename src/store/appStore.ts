@@ -31,12 +31,9 @@ interface AppState {
 const defaultMasterSettings: MasterSettings = {
   aiProvider: 'openai',
   apiKey: '',
-  defaultModel: 'gpt-4',
-  defaultTemperature: 0.7,
-  defaultMaxTokens: 4000,
+  defaultModel: 'gpt-4.1',
   defaultArticleLength: 500,
   defaultBrandVoice: 'Professional, informative, and helpful',
-  defaultLanguage: 'english',
 };
 
 export const useAppStore = create<AppState>()(

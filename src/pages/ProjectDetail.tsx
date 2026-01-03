@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, useNavigate, useBlocker } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Pencil, 
@@ -11,7 +11,8 @@ import {
   Globe,
   Languages,
   Trash2,
-  Plus
+  Plus,
+  Save
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { PageHeader } from '@/components/ui/page-header';
@@ -22,9 +23,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Article } from '@/types/project';
+import { Article, Project, ProjectLanguage } from '@/types/project';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -40,14 +42,88 @@ export default function ProjectDetail() {
   } = useAppStore();
   
   const project = projects.find((p) => p.id === projectId);
-  const [isEditing, setIsEditing] = useState(false);
   const [newArticleTitle, setNewArticleTitle] = useState('');
+  
+  // Local state for unsaved changes
+  const [localProject, setLocalProject] = useState<Partial<Project>>({});
+  const [isDirty, setIsDirty] = useState(false);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+
+  // Initialize local state when project changes
+  useEffect(() => {
+    if (project) {
+      setLocalProject({
+        name: project.name,
+        brandVoice: project.brandVoice,
+        language: project.language,
+        customLanguage: project.customLanguage,
+        websiteUrl: project.websiteUrl,
+        product: project.product,
+        targetMarket: project.targetMarket,
+        persona: project.persona,
+        valueProposition: project.valueProposition,
+      });
+      setIsDirty(false);
+    }
+  }, [project?.id]);
+
+  // Block navigation when there are unsaved changes
+  const blocker = useBlocker(isDirty);
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      setShowUnsavedDialog(true);
+      setPendingNavigation(blocker.location.pathname);
+    }
+  }, [blocker.state]);
 
   useEffect(() => {
     if (projectId) {
       setActiveProject(projectId);
     }
   }, [projectId, setActiveProject]);
+
+  const handleLocalChange = useCallback(<K extends keyof Project>(key: K, value: Project[K]) => {
+    setLocalProject((prev) => ({ ...prev, [key]: value }));
+    setIsDirty(true);
+  }, []);
+
+  const handleSaveProject = () => {
+    if (!project) return;
+    updateProject(project.id, localProject);
+    setIsDirty(false);
+    toast.success('Project saved successfully');
+  };
+
+  const handleDiscardChanges = () => {
+    if (project) {
+      setLocalProject({
+        name: project.name,
+        brandVoice: project.brandVoice,
+        language: project.language,
+        customLanguage: project.customLanguage,
+        websiteUrl: project.websiteUrl,
+        product: project.product,
+        targetMarket: project.targetMarket,
+        persona: project.persona,
+        valueProposition: project.valueProposition,
+      });
+    }
+    setIsDirty(false);
+    setShowUnsavedDialog(false);
+    if (blocker.state === 'blocked') {
+      blocker.proceed();
+    }
+  };
+
+  const handleStayOnPage = () => {
+    setShowUnsavedDialog(false);
+    setPendingNavigation(null);
+    if (blocker.state === 'blocked') {
+      blocker.reset();
+    }
+  };
 
   if (!project) {
     return (
@@ -61,10 +137,12 @@ export default function ProjectDetail() {
   }
 
   const getLanguageLabel = () => {
-    if (project.language === 'other' && project.customLanguage) {
-      return project.customLanguage;
+    const lang = localProject.language || project.language;
+    const customLang = localProject.customLanguage || project.customLanguage;
+    if (lang === 'other' && customLang) {
+      return customLang;
     }
-    return project.language.charAt(0).toUpperCase() + project.language.slice(1);
+    return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
   const handleDeleteProject = () => {
@@ -108,6 +186,30 @@ export default function ProjectDetail() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto animate-fade-in">
+      {/* Unsaved changes dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Do you want to save them before leaving?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleStayOnPage}>Stay</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleDiscardChanges}>
+              Discard Changes
+            </Button>
+            <AlertDialogAction onClick={() => {
+              handleSaveProject();
+              handleDiscardChanges();
+            }}>
+              Save & Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Button
         variant="ghost"
         className="mb-6 gap-2 text-muted-foreground"
@@ -118,12 +220,18 @@ export default function ProjectDetail() {
       </Button>
 
       <PageHeader
-        title={project.name}
+        title={localProject.name || project.name}
         description={`${project.mode === 'auto' ? 'Auto Mode' : 'Manual Mode'} · ${getLanguageLabel()}`}
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => setIsEditing(!isEditing)}>
-              <Pencil className="w-4 h-4" />
+            {isDirty && (
+              <Badge variant="outline" className="bg-warning/20 text-warning border-warning/30">
+                Unsaved Changes
+              </Badge>
+            )}
+            <Button onClick={handleSaveProject} disabled={!isDirty} className="gap-2">
+              <Save className="w-4 h-4" />
+              Save Project
             </Button>
             <Button variant="destructive" size="icon" onClick={handleDeleteProject}>
               <Trash2 className="w-4 h-4" />
@@ -216,8 +324,8 @@ export default function ProjectDetail() {
                   <div className="flex gap-2">
                     <Input
                       id="websiteUrl"
-                      value={project.websiteUrl || ''}
-                      onChange={(e) => updateProject(project.id, { websiteUrl: e.target.value })}
+                      value={localProject.websiteUrl || ''}
+                      onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
                       placeholder="https://example.com"
                     />
                     <Button className="gap-2 shrink-0">
@@ -240,8 +348,8 @@ export default function ProjectDetail() {
                     <Label htmlFor="product">Product/Service</Label>
                     <Input
                       id="product"
-                      value={project.product || ''}
-                      onChange={(e) => updateProject(project.id, { product: e.target.value })}
+                      value={localProject.product || ''}
+                      onChange={(e) => handleLocalChange('product', e.target.value)}
                       placeholder="What does the business sell?"
                     />
                   </div>
@@ -249,8 +357,8 @@ export default function ProjectDetail() {
                     <Label htmlFor="targetMarket">Target Market</Label>
                     <Input
                       id="targetMarket"
-                      value={project.targetMarket || ''}
-                      onChange={(e) => updateProject(project.id, { targetMarket: e.target.value })}
+                      value={localProject.targetMarket || ''}
+                      onChange={(e) => handleLocalChange('targetMarket', e.target.value)}
                       placeholder="Who is the target audience?"
                     />
                   </div>
@@ -260,8 +368,8 @@ export default function ProjectDetail() {
                   <Label htmlFor="persona">Persona</Label>
                   <Textarea
                     id="persona"
-                    value={project.persona || ''}
-                    onChange={(e) => updateProject(project.id, { persona: e.target.value })}
+                    value={localProject.persona || ''}
+                    onChange={(e) => handleLocalChange('persona', e.target.value)}
                     placeholder="Describe the ideal customer persona..."
                     rows={3}
                   />
@@ -271,8 +379,8 @@ export default function ProjectDetail() {
                   <Label htmlFor="valueProposition">Value Proposition</Label>
                   <Textarea
                     id="valueProposition"
-                    value={project.valueProposition || ''}
-                    onChange={(e) => updateProject(project.id, { valueProposition: e.target.value })}
+                    value={localProject.valueProposition || ''}
+                    onChange={(e) => handleLocalChange('valueProposition', e.target.value)}
                     placeholder="What unique value does the business offer?"
                     rows={3}
                   />
@@ -415,17 +523,43 @@ export default function ProjectDetail() {
                 <Label htmlFor="projectName">Project Name</Label>
                 <Input
                   id="projectName"
-                  value={project.name}
-                  onChange={(e) => updateProject(project.id, { name: e.target.value })}
+                  value={localProject.name || ''}
+                  onChange={(e) => handleLocalChange('name', e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Language</Label>
+                <div className="flex flex-wrap gap-4">
+                  {(['indonesian', 'english', 'other'] as ProjectLanguage[]).map((lang) => (
+                    <label key={lang} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="language"
+                        checked={localProject.language === lang}
+                        onChange={() => handleLocalChange('language', lang)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <span className="capitalize">{lang}</span>
+                    </label>
+                  ))}
+                </div>
+                {localProject.language === 'other' && (
+                  <Input
+                    value={localProject.customLanguage || ''}
+                    onChange={(e) => handleLocalChange('customLanguage', e.target.value)}
+                    placeholder="Enter language name..."
+                    className="mt-2"
+                  />
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="brandVoice">Brand Voice (Override)</Label>
                 <Textarea
                   id="brandVoice"
-                  value={project.brandVoice || ''}
-                  onChange={(e) => updateProject(project.id, { brandVoice: e.target.value })}
+                  value={localProject.brandVoice || ''}
+                  onChange={(e) => handleLocalChange('brandVoice', e.target.value)}
                   placeholder="Leave empty to use Master Settings default..."
                   rows={4}
                 />
