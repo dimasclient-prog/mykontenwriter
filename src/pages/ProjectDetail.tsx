@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Article, Project, ProjectLanguage, StrategyPack } from '@/types/project';
+import { Article, Project, ProjectLanguage, ProjectMode, StrategyPack } from '@/types/project';
 import { supabase } from '@/integrations/supabase/client';
 import { ArticleEditor } from '@/components/ArticleEditor';
 
@@ -70,6 +70,7 @@ export default function ProjectDetail() {
     if (project) {
       setLocalProject({
         name: project.name,
+        mode: project.mode,
         brandVoice: project.brandVoice,
         language: project.language,
         customLanguage: project.customLanguage,
@@ -115,6 +116,7 @@ export default function ProjectDetail() {
     if (project) {
       setLocalProject({
         name: project.name,
+        mode: project.mode,
         brandVoice: project.brandVoice,
         language: project.language,
         customLanguage: project.customLanguage,
@@ -425,7 +427,7 @@ export default function ProjectDetail() {
 
       <PageHeader
         title={localProject.name || project.name}
-        description={`${project.mode === 'auto' ? 'Auto Mode' : 'Manual Mode'} · ${getLanguageLabel()}`}
+        description={`${(localProject.mode || project.mode) === 'auto' ? 'Auto Mode' : 'Advanced Mode'} · ${getLanguageLabel()}`}
         action={
           <div className="flex items-center gap-2">
             {isDirty && (
@@ -460,12 +462,14 @@ export default function ProjectDetail() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Mode</CardTitle>
               </CardHeader>
               <CardContent className="flex items-center gap-3">
-                {project.mode === 'auto' ? (
+                {(localProject.mode || project.mode) === 'auto' ? (
                   <Globe className="w-5 h-5 text-primary" />
                 ) : (
                   <Pencil className="w-5 h-5 text-primary" />
                 )}
-                <span className="font-semibold capitalize">{project.mode} Mode</span>
+                <span className="font-semibold capitalize">
+                  {(localProject.mode || project.mode) === 'auto' ? 'Auto' : 'Advanced'} Mode
+                </span>
               </CardContent>
             </Card>
 
@@ -524,7 +528,7 @@ export default function ProjectDetail() {
 
         {/* Strategy Pack Tab */}
         <TabsContent value="strategy" className="space-y-6">
-          {project.mode === 'auto' ? (
+          {(localProject.mode || project.mode) === 'auto' ? (
             <Card>
               <CardHeader>
                 <CardTitle>Website Analysis</CardTitle>
@@ -797,6 +801,29 @@ export default function ProjectDetail() {
               </div>
 
               <div className="space-y-2">
+                <Label>Project Mode</Label>
+                <div className="flex flex-wrap gap-4">
+                  {(['auto', 'advanced'] as ProjectMode[]).map((mode) => (
+                    <label key={mode} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="mode"
+                        checked={localProject.mode === mode}
+                        onChange={() => handleLocalChange('mode', mode)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <span className="capitalize">{mode === 'auto' ? 'Auto Mode' : 'Advanced Mode'}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {localProject.mode === 'auto' 
+                    ? 'Auto Mode: Analyze website URL to extract business context automatically'
+                    : 'Advanced Mode: Manually input all business details for precise control'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Language</Label>
                 <div className="flex flex-wrap gap-4">
                   {(['indonesian', 'english', 'other'] as ProjectLanguage[]).map((lang) => (
@@ -837,6 +864,81 @@ export default function ProjectDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Advanced Mode Fields */}
+          {localProject.mode === 'advanced' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Business Details</CardTitle>
+                <CardDescription>Detailed information for advanced content generation</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="settingsProduct">Product/Service</Label>
+                    <Input
+                      id="settingsProduct"
+                      value={localProject.product || ''}
+                      onChange={(e) => handleLocalChange('product', e.target.value)}
+                      placeholder="What does the business sell?"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="settingsTargetMarket">Target Market</Label>
+                    <Input
+                      id="settingsTargetMarket"
+                      value={localProject.targetMarket || ''}
+                      onChange={(e) => handleLocalChange('targetMarket', e.target.value)}
+                      placeholder="Who is the target audience?"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="settingsPersona">Persona</Label>
+                  <Textarea
+                    id="settingsPersona"
+                    value={localProject.persona || ''}
+                    onChange={(e) => handleLocalChange('persona', e.target.value)}
+                    placeholder="Describe the ideal customer persona..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="settingsValueProposition">Value Proposition</Label>
+                  <Textarea
+                    id="settingsValueProposition"
+                    value={localProject.valueProposition || ''}
+                    onChange={(e) => handleLocalChange('valueProposition', e.target.value)}
+                    placeholder="What unique value does the business offer?"
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Auto Mode URL Field */}
+          {localProject.mode === 'auto' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Website URL</CardTitle>
+                <CardDescription>Enter the website URL to analyze for auto-generating content strategy</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="settingsWebsiteUrl">Website URL</Label>
+                  <Input
+                    id="settingsWebsiteUrl"
+                    value={localProject.websiteUrl || ''}
+                    onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
+                    placeholder="https://example.com"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
