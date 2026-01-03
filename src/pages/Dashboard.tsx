@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useAppStore } from '@/store/appStore';
+import { Plus, FileText, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function Dashboard() {
-  const { projects, setActiveProject } = useAppStore();
+  const { projects, setActiveProject, loading } = useData();
   const navigate = useNavigate();
 
   const handleProjectClick = (projectId: string) => {
@@ -29,6 +29,14 @@ export default function Dashboard() {
     }
     return project.language.charAt(0).toUpperCase() + project.language.slice(1);
   };
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto animate-fade-in">

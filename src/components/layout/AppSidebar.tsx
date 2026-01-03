@@ -6,26 +6,45 @@ import {
   FileText, 
   Sparkles,
   ChevronDown,
-  LayoutDashboard
+  LayoutDashboard,
+  LogOut,
+  Loader2
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useAppStore } from '@/store/appStore';
+import { useData } from '@/contexts/DataContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { toast } from 'sonner';
 
 export function AppSidebar() {
   const [projectsOpen, setProjectsOpen] = useState(true);
-  const { projects, activeProjectId, setActiveProject } = useAppStore();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { projects, activeProjectId, setActiveProject, loading } = useData();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
 
   const handleProjectClick = (projectId: string) => {
     setActiveProject(projectId);
     navigate(`/project/${projectId}`);
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    const { error } = await signOut();
+    setIsLoggingOut(false);
+    
+    if (error) {
+      toast.error('Failed to sign out');
+      return;
+    }
+    
+    navigate('/auth');
   };
 
   return (
@@ -85,42 +104,70 @@ export function AppSidebar() {
             <ChevronDown className={cn('w-4 h-4 transition-transform', projectsOpen && 'rotate-180')} />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 space-y-1">
-            {projects.map((project) => (
-              <button
-                key={project.id}
-                onClick={() => handleProjectClick(project.id)}
-                className={cn(
-                  'flex items-center gap-3 w-full px-3 py-2 pl-10 rounded-lg text-sm transition-colors text-left',
-                  activeProjectId === project.id
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-                )}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span className="truncate">{project.name}</span>
-              </button>
-            ))}
-            <NavLink
-              to="/project/new"
-              className="flex items-center gap-3 w-full px-3 py-2 pl-10 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              New Project
-            </NavLink>
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                {projects.map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => handleProjectClick(project.id)}
+                    className={cn(
+                      'flex items-center gap-3 w-full px-3 py-2 pl-10 rounded-lg text-sm transition-colors text-left',
+                      activeProjectId === project.id
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                    )}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="truncate">{project.name}</span>
+                  </button>
+                ))}
+                <NavLink
+                  to="/project/new"
+                  className="flex items-center gap-3 w-full px-3 py-2 pl-10 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Project
+                </NavLink>
+              </>
+            )}
           </CollapsibleContent>
         </Collapsible>
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border">
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-3 text-muted-foreground"
-          onClick={() => navigate('/project/new')}
-        >
-          <Plus className="w-4 h-4" />
-          Create Project
-        </Button>
+      <div className="p-4 border-t border-sidebar-border space-y-3">
+        {user && (
+          <p className="text-xs text-muted-foreground truncate px-1">
+            {user.email}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="flex-1 justify-start gap-2 text-muted-foreground"
+            onClick={() => navigate('/project/new')}
+          >
+            <Plus className="w-4 h-4" />
+            New
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            title="Sign out"
+          >
+            {isLoggingOut ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <LogOut className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </aside>
   );

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, Eye, EyeOff, Sparkles, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { useAppStore } from '@/store/appStore';
+import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,21 @@ import { supabase } from '@/integrations/supabase/client';
 import { AIProvider, AI_MODELS, AI_PROVIDER_NAMES } from '@/types/project';
 
 export default function MasterSettings() {
-  const { masterSettings, updateMasterSettings } = useAppStore();
+  const { masterSettings, updateMasterSettings, loading } = useData();
   const [showApiKey, setShowApiKey] = useState(false);
   const [localSettings, setLocalSettings] = useState(masterSettings);
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'ok' | 'failed'>('idle');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = () => {
-    updateMasterSettings(localSettings);
+  // Sync local settings when masterSettings changes
+  useEffect(() => {
+    setLocalSettings(masterSettings);
+  }, [masterSettings]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    await updateMasterSettings(localSettings);
+    setIsSaving(false);
     toast.success('Master settings saved successfully');
   };
 
@@ -83,14 +91,22 @@ export default function MasterSettings() {
 
   const currentModels = AI_MODELS[localSettings.aiProvider];
 
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-4xl mx-auto animate-fade-in">
       <PageHeader
         title="Master Settings"
         description="Configure global settings that apply to all projects"
         action={
-          <Button onClick={handleSave} className="gap-2">
-            <Save className="w-4 h-4" />
+          <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save Settings
           </Button>
         }
@@ -190,7 +206,7 @@ export default function MasterSettings() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your API key is stored locally and never sent to our servers
+                Your API key is stored securely in the database
               </p>
             </div>
           </CardContent>
