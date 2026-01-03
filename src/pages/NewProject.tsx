@@ -149,13 +149,13 @@ export default function NewProject() {
                 </label>
 
                 <label
-                  htmlFor="mode-manual"
+                  htmlFor="mode-advanced"
                   className={cn(
                     'flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all',
-                    mode === 'manual' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                    mode === 'advanced' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                   )}
                 >
-                  <RadioGroupItem value="manual" id="mode-manual" />
+                  <RadioGroupItem value="advanced" id="mode-advanced" />
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">

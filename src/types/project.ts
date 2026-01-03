@@ -1,4 +1,4 @@
-export type ProjectMode = 'auto' | 'manual';
+export type ProjectMode = 'auto' | 'advanced';
 
 export type ProjectLanguage = 'indonesian' | 'english' | 'other';
 
