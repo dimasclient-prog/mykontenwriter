@@ -18,6 +18,7 @@ interface ArticleRequest {
     persona?: string;
     painPoints?: string[];
     product?: string;
+    targetMarket?: string;
     valueProposition?: string;
   };
 }
@@ -192,6 +193,31 @@ serve(async (req) => {
 
     const languageInstruction = projectData.language;
 
+    // Increase target word count by 20%
+    const adjustedWordCount = Math.round(projectData.targetWordCount * 1.2);
+
+    // Build business context for soft CTA
+    const businessDetails = {
+      product: projectData.product || '',
+      targetMarket: projectData.targetMarket || '',
+      persona: projectData.persona || '',
+      valueProposition: projectData.valueProposition || '',
+    };
+
+    const hasBusinessDetails = businessDetails.product || businessDetails.valueProposition;
+
+    const softCtaInstruction = hasBusinessDetails 
+      ? `\nSOFT CTA SECTION (MANDATORY):
+- At the end of the article, before or after FAQ, include a soft call-to-action section
+- Use <h2> for the CTA heading
+- The CTA should be helpful and non-pushy, relating to the reader's needs
+- Reference the product/service naturally: "${businessDetails.product}"
+- Highlight the value proposition: "${businessDetails.valueProposition}"
+- Target audience context: "${businessDetails.targetMarket || businessDetails.persona}"
+- Example tone: "If you're looking for [solution to pain point], [product] might be worth exploring..."
+- Keep it educational and helpful, not salesy`
+      : '';
+
     const systemPrompt = `You are an expert SEO content writer specializing in TOFU (Top of Funnel) educational content.
 Your task is to write a comprehensive, SEO-optimized article.
 
@@ -206,37 +232,48 @@ OUTPUT FORMAT (MANDATORY):
 
 STRUCTURE RULES (STRICT):
 - Exactly 1 <h1> (the article title)
-- Minimum 2 <h2> sections
-- Minimum 1 <h3> subsection
+- Minimum 3 <h2> sections for comprehensive coverage
+- Minimum 2 <h3> subsections
 - FAQ section is MANDATORY:
   - FAQ title uses <h2>
   - Each question uses <h3>
   - Each answer uses <p>
+  - Include at least 4-5 FAQ items
+${softCtaInstruction}
 
 CONTENT RULES:
 - Article type: TOFU (educational, informative)
 - Focus on user pain points and solutions
 - Educational and non-salesy tone
-- Soft promotion only - NO hard CTA
+- Soft promotion only - NO hard CTA except in designated soft CTA section
 - Natural keyword usage
 - Search-intent optimized headings
 - Concise FAQ answers suitable for featured snippets
+- Write in-depth paragraphs with detailed explanations
+- Include practical examples and actionable tips
 
-TARGET LENGTH: ${projectData.targetWordCount} words (±15% tolerance)`;
+TARGET LENGTH: ${adjustedWordCount} words (±10% tolerance) - Write comprehensively to meet this target`;
 
     const painPointsText = projectData.painPoints?.length 
       ? `\nUser Pain Points to Address:\n${projectData.painPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
       : '';
 
-    const userPrompt = `Write an article with this title: "${articleTitle}"
+    const userPrompt = `Write a comprehensive, in-depth article with this title: "${articleTitle}"
 
 Context:
 - Target Persona: ${projectData.persona || 'General audience'}
+- Target Market: ${projectData.targetMarket || 'Not specified'}
 - Product/Service: ${projectData.product || 'Not specified'}
 - Value Proposition: ${projectData.valueProposition || 'Not specified'}
 ${painPointsText}
 
-Remember: Output valid HTML only with the structure specified. Write entirely in ${languageInstruction}.`;
+IMPORTANT: 
+- Write at least ${adjustedWordCount} words
+- Include detailed explanations and practical examples
+- Cover the topic thoroughly with multiple subsections
+- Output valid HTML only with the structure specified
+- Write entirely in ${languageInstruction}
+${hasBusinessDetails ? '- Include a soft, helpful CTA section that naturally mentions the product/service' : ''}`;
 
     let result: string;
     switch (provider) {

@@ -257,6 +257,7 @@ export default function ProjectDetail() {
             persona: project.strategyPack?.personaSummary || project.persona,
             painPoints: project.strategyPack?.corePainPoints,
             product: project.product,
+            targetMarket: project.targetMarket,
             valueProposition: project.valueProposition,
           },
         },
