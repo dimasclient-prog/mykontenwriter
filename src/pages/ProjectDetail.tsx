@@ -12,7 +12,8 @@ import {
   Languages,
   Trash2,
   Plus,
-  Save
+  Save,
+  Loader2
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { PageHeader } from '@/components/ui/page-header';
@@ -26,19 +27,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Article, Project, ProjectLanguage } from '@/types/project';
+import { Article, Project, ProjectLanguage, StrategyPack } from '@/types/project';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { 
     projects, 
+    masterSettings,
     setActiveProject, 
     updateProject, 
     updateArticle,
     deleteArticle,
     addArticle,
-    deleteProject 
+    deleteProject,
+    setStrategyPack
   } = useAppStore();
   
   const project = projects.find((p) => p.id === projectId);
@@ -49,6 +53,10 @@ export default function ProjectDetail() {
   const [isDirty, setIsDirty] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  
+  // AI generation states
+  const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
+  const [generatingArticleId, setGeneratingArticleId] = useState<string | null>(null);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -158,6 +166,118 @@ export default function ProjectDetail() {
     addArticle(project.id, newArticleTitle.trim());
     setNewArticleTitle('');
     toast.success('Article added to todo list');
+  };
+
+  const getProjectLanguage = () => {
+    const lang = project.language;
+    if (lang === 'other' && project.customLanguage) {
+      return project.customLanguage;
+    }
+    return lang.charAt(0).toUpperCase() + lang.slice(1);
+  };
+
+  const handleGenerateStrategy = async () => {
+    if (!masterSettings.apiKey) {
+      toast.error('Please configure your API key in Master Settings first');
+      return;
+    }
+
+    setIsGeneratingStrategy(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-strategy', {
+        body: {
+          apiKey: masterSettings.apiKey,
+          provider: masterSettings.aiProvider,
+          model: masterSettings.defaultModel,
+          projectData: {
+            mode: project.mode,
+            language: getProjectLanguage(),
+            websiteUrl: localProject.websiteUrl || project.websiteUrl,
+            product: localProject.product || project.product,
+            targetMarket: localProject.targetMarket || project.targetMarket,
+            persona: localProject.persona || project.persona,
+            valueProposition: localProject.valueProposition || project.valueProposition,
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Strategy generation error:', error);
+        toast.error('Failed to generate strategy pack');
+        return;
+      }
+
+      if (data?.strategyPack) {
+        setStrategyPack(project.id, data.strategyPack as StrategyPack);
+        toast.success('Strategy pack generated successfully!');
+      } else if (data?.error) {
+        toast.error(data.error);
+      }
+    } catch (err) {
+      console.error('Strategy generation error:', err);
+      toast.error('Failed to generate strategy pack');
+    } finally {
+      setIsGeneratingStrategy(false);
+    }
+  };
+
+  const handleGenerateArticle = async (articleId: string, articleTitle: string) => {
+    if (!masterSettings.apiKey) {
+      toast.error('Please configure your API key in Master Settings first');
+      return;
+    }
+
+    setGeneratingArticleId(articleId);
+    updateArticle(project.id, articleId, { status: 'in-progress' });
+
+    try {
+      const brandVoice = project.brandVoice || masterSettings.defaultBrandVoice;
+      const targetWordCount = masterSettings.defaultArticleLength;
+
+      const { data, error } = await supabase.functions.invoke('generate-article', {
+        body: {
+          apiKey: masterSettings.apiKey,
+          provider: masterSettings.aiProvider,
+          model: masterSettings.defaultModel,
+          articleTitle,
+          projectData: {
+            language: getProjectLanguage(),
+            brandVoice,
+            targetWordCount,
+            persona: project.strategyPack?.personaSummary || project.persona,
+            painPoints: project.strategyPack?.corePainPoints,
+            product: project.product,
+            valueProposition: project.valueProposition,
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Article generation error:', error);
+        updateArticle(project.id, articleId, { status: 'todo' });
+        toast.error('Failed to generate article');
+        return;
+      }
+
+      if (data?.content) {
+        updateArticle(project.id, articleId, {
+          status: 'completed',
+          content: data.content,
+          wordCount: data.wordCount,
+        });
+        toast.success('Article generated successfully!');
+      } else if (data?.error) {
+        updateArticle(project.id, articleId, { status: 'todo' });
+        toast.error(data.error);
+      }
+    } catch (err) {
+      console.error('Article generation error:', err);
+      updateArticle(project.id, articleId, { status: 'todo' });
+      toast.error('Failed to generate article');
+    } finally {
+      setGeneratingArticleId(null);
+    }
   };
 
   const getStatusIcon = (status: Article['status']) => {
@@ -301,9 +421,17 @@ export default function ProjectDetail() {
                     ? 'Enter your website URL to analyze and generate a comprehensive SEO strategy.'
                     : 'Fill in your business details to generate a comprehensive SEO strategy.'}
                 </p>
-                <Button className="gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  Generate Strategy
+                <Button 
+                  className="gap-2" 
+                  onClick={handleGenerateStrategy}
+                  disabled={isGeneratingStrategy}
+                >
+                  {isGeneratingStrategy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {isGeneratingStrategy ? 'Generating...' : 'Generate Strategy'}
                 </Button>
               </CardContent>
             </Card>
@@ -328,9 +456,17 @@ export default function ProjectDetail() {
                       onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
                       placeholder="https://example.com"
                     />
-                    <Button className="gap-2 shrink-0">
-                      <Sparkles className="w-4 h-4" />
-                      Analyze
+                    <Button 
+                      className="gap-2 shrink-0"
+                      onClick={handleGenerateStrategy}
+                      disabled={isGeneratingStrategy}
+                    >
+                      {isGeneratingStrategy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      {isGeneratingStrategy ? 'Analyzing...' : 'Analyze'}
                     </Button>
                   </div>
                 </div>
@@ -386,9 +522,17 @@ export default function ProjectDetail() {
                   />
                 </div>
 
-                <Button className="gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  Generate Strategy Pack
+                <Button 
+                  className="gap-2"
+                  onClick={handleGenerateStrategy}
+                  disabled={isGeneratingStrategy}
+                >
+                  {isGeneratingStrategy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {isGeneratingStrategy ? 'Generating...' : 'Generate Strategy Pack'}
                 </Button>
               </CardContent>
             </Card>
@@ -479,8 +623,17 @@ export default function ProjectDetail() {
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 min-w-0">
-                        {getStatusIcon(article.status)}
+                        {generatingArticleId === article.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        ) : (
+                          getStatusIcon(article.status)
+                        )}
                         <span className="font-medium truncate">{article.title}</span>
+                        {article.wordCount && (
+                          <span className="text-xs text-muted-foreground">
+                            {article.wordCount} words
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         {getStatusBadge(article.status)}
@@ -488,9 +641,14 @@ export default function ProjectDetail() {
                           {article.status === 'todo' && (
                             <Button
                               size="sm"
-                              onClick={() => updateArticle(project.id, article.id, { status: 'in-progress' })}
+                              onClick={() => handleGenerateArticle(article.id, article.title)}
+                              disabled={generatingArticleId !== null}
                             >
-                              <Sparkles className="w-3 h-3 mr-1" />
+                              {generatingArticleId === article.id ? (
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-3 h-3 mr-1" />
+                              )}
                               Generate
                             </Button>
                           )}
