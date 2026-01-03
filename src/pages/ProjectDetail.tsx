@@ -13,7 +13,9 @@ import {
   Trash2,
   Plus,
   Save,
-  Loader2
+  Loader2,
+  Eye,
+  Zap
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { PageHeader } from '@/components/ui/page-header';
@@ -29,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Article, Project, ProjectLanguage, StrategyPack } from '@/types/project';
 import { supabase } from '@/integrations/supabase/client';
+import { ArticleEditor } from '@/components/ArticleEditor';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -57,6 +60,10 @@ export default function ProjectDetail() {
   // AI generation states
   const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
   const [generatingArticleId, setGeneratingArticleId] = useState<string | null>(null);
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+  
+  // Article editor state
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -278,6 +285,83 @@ export default function ProjectDetail() {
     } finally {
       setGeneratingArticleId(null);
     }
+  };
+
+  const handleBatchGenerate = async () => {
+    const todoArticles = project.articles.filter((a) => a.status === 'todo');
+    if (todoArticles.length === 0) {
+      toast.info('No articles to generate');
+      return;
+    }
+
+    if (!masterSettings.apiKey) {
+      toast.error('Please configure your API key in Master Settings first');
+      return;
+    }
+
+    setIsBatchGenerating(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const article of todoArticles) {
+      setGeneratingArticleId(article.id);
+      updateArticle(project.id, article.id, { status: 'in-progress' });
+
+      try {
+        const brandVoice = project.brandVoice || masterSettings.defaultBrandVoice;
+        const targetWordCount = masterSettings.defaultArticleLength;
+
+        const { data, error } = await supabase.functions.invoke('generate-article', {
+          body: {
+            apiKey: masterSettings.apiKey,
+            provider: masterSettings.aiProvider,
+            model: masterSettings.defaultModel,
+            articleTitle: article.title,
+            projectData: {
+              language: getProjectLanguage(),
+              brandVoice,
+              targetWordCount,
+              persona: project.strategyPack?.personaSummary || project.persona,
+              painPoints: project.strategyPack?.corePainPoints,
+              product: project.product,
+              valueProposition: project.valueProposition,
+            },
+          },
+        });
+
+        if (error || !data?.content) {
+          updateArticle(project.id, article.id, { status: 'todo' });
+          errorCount++;
+        } else {
+          updateArticle(project.id, article.id, {
+            status: 'completed',
+            content: data.content,
+            wordCount: data.wordCount,
+          });
+          successCount++;
+        }
+      } catch (err) {
+        updateArticle(project.id, article.id, { status: 'todo' });
+        errorCount++;
+      }
+    }
+
+    setGeneratingArticleId(null);
+    setIsBatchGenerating(false);
+
+    if (errorCount === 0) {
+      toast.success(`Generated ${successCount} articles successfully!`);
+    } else {
+      toast.warning(`Generated ${successCount} articles, ${errorCount} failed`);
+    }
+  };
+
+  const handleSaveArticleContent = (content: string) => {
+    if (!editingArticle) return;
+    const wordCount = content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+    updateArticle(project.id, editingArticle.id, { content, wordCount });
+    setEditingArticle(null);
+    toast.success('Article saved');
   };
 
   const getStatusIcon = (status: Article['status']) => {
@@ -586,9 +670,25 @@ export default function ProjectDetail() {
         {/* Articles Tab */}
         <TabsContent value="articles" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Add Article</CardTitle>
-              <CardDescription>Add a new article to the todo list</CardDescription>
+            <CardHeader className="flex-row items-center justify-between">
+              <div>
+                <CardTitle>Add Article</CardTitle>
+                <CardDescription>Add a new article to the todo list</CardDescription>
+              </div>
+              {project.articles.filter((a) => a.status === 'todo').length > 0 && (
+                <Button
+                  onClick={handleBatchGenerate}
+                  disabled={isBatchGenerating || generatingArticleId !== null}
+                  className="gap-2"
+                >
+                  {isBatchGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4" />
+                  )}
+                  Generate All ({project.articles.filter((a) => a.status === 'todo').length})
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">
@@ -635,14 +735,24 @@ export default function ProjectDetail() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-3 shrink-0">
                         {getStatusBadge(article.status)}
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {article.status === 'completed' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingArticle(article)}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View/Edit
+                            </Button>
+                          )}
                           {article.status === 'todo' && (
                             <Button
                               size="sm"
                               onClick={() => handleGenerateArticle(article.id, article.title)}
-                              disabled={generatingArticleId !== null}
+                              disabled={generatingArticleId !== null || isBatchGenerating}
                             >
                               {generatingArticleId === article.id ? (
                                 <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -729,6 +839,16 @@ export default function ProjectDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Article Editor Dialog */}
+      {editingArticle && (
+        <ArticleEditor
+          article={editingArticle}
+          open={!!editingArticle}
+          onClose={() => setEditingArticle(null)}
+          onSave={handleSaveArticleContent}
+        />
+      )}
     </div>
   );
 }
