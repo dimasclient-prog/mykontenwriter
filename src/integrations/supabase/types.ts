@@ -151,15 +151,43 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       ai_provider: "openai" | "gemini" | "deepseek" | "qwen"
+      app_role: "admin" | "user"
       article_status: "todo" | "in-progress" | "completed"
       project_language: "indonesian" | "english" | "other"
       project_mode: "auto" | "advanced"
@@ -291,6 +319,7 @@ export const Constants = {
   public: {
     Enums: {
       ai_provider: ["openai", "gemini", "deepseek", "qwen"],
+      app_role: ["admin", "user"],
       article_status: ["todo", "in-progress", "completed"],
       project_language: ["indonesian", "english", "other"],
       project_mode: ["auto", "advanced"],
