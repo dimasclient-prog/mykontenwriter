@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Globe, Pencil, Languages } from 'lucide-react';
-import { useAppStore } from '@/store/appStore';
+import { ArrowLeft, ArrowRight, Globe, Pencil, Languages, Loader2 } from 'lucide-react';
+import { useData } from '@/contexts/DataContext';
 import { ProjectMode, ProjectLanguage } from '@/types/project';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -14,15 +14,16 @@ import { toast } from 'sonner';
 
 export default function NewProject() {
   const navigate = useNavigate();
-  const { createProject } = useAppStore();
+  const { createProject } = useData();
   
   const [step, setStep] = useState(1);
   const [projectName, setProjectName] = useState('');
   const [mode, setMode] = useState<ProjectMode>('auto');
   const [language, setLanguage] = useState<ProjectLanguage>('english');
   const [customLanguage, setCustomLanguage] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!projectName.trim()) {
       toast.error('Please enter a project name');
       return;
@@ -32,15 +33,21 @@ export default function NewProject() {
       return;
     }
 
-    const projectId = createProject(
+    setIsCreating(true);
+    const projectId = await createProject(
       projectName.trim(),
       mode,
       language,
       language === 'other' ? customLanguage.trim() : undefined
     );
+    setIsCreating(false);
     
-    toast.success('Project created successfully');
-    navigate(`/project/${projectId}`);
+    if (projectId) {
+      toast.success('Project created successfully');
+      navigate(`/project/${projectId}`);
+    } else {
+      toast.error('Failed to create project');
+    }
   };
 
   const canProceed = () => {
@@ -261,9 +268,12 @@ export default function NewProject() {
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handleCreate} disabled={!canProceed()}>
+          <Button onClick={handleCreate} disabled={!canProceed() || isCreating}>
+            {isCreating ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
             Create Project
-            <ArrowRight className="w-4 h-4 ml-2" />
+            {!isCreating && <ArrowRight className="w-4 h-4 ml-2" />}
           </Button>
         )}
       </div>

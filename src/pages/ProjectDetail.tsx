@@ -17,7 +17,7 @@ import {
   Eye,
   Zap
 } from 'lucide-react';
-import { useAppStore } from '@/store/appStore';
+import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,8 +45,9 @@ export default function ProjectDetail() {
     deleteArticle,
     addArticle,
     deleteProject,
-    setStrategyPack
-  } = useAppStore();
+    setStrategyPack,
+    loading
+  } = useData();
   
   const project = projects.find((p) => p.id === projectId);
   const [newArticleTitle, setNewArticleTitle] = useState('');
@@ -105,9 +106,9 @@ export default function ProjectDetail() {
     setIsDirty(true);
   }, []);
 
-  const handleSaveProject = () => {
+  const handleSaveProject = async () => {
     if (!project) return;
-    updateProject(project.id, localProject);
+    await updateProject(project.id, localProject);
     setIsDirty(false);
     toast.success('Project saved successfully');
   };
@@ -142,6 +143,14 @@ export default function ProjectDetail() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   if (!project) {
     return (
       <div className="p-8 text-center">
@@ -162,17 +171,17 @@ export default function ProjectDetail() {
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
-  const handleDeleteProject = () => {
+  const handleDeleteProject = async () => {
     if (confirm('Are you sure you want to delete this project?')) {
-      deleteProject(project.id);
+      await deleteProject(project.id);
       toast.success('Project deleted');
       navigate('/');
     }
   };
 
-  const handleAddArticle = () => {
+  const handleAddArticle = async () => {
     if (!newArticleTitle.trim()) return;
-    addArticle(project.id, newArticleTitle.trim());
+    await addArticle(project.id, newArticleTitle.trim());
     setNewArticleTitle('');
     toast.success('Article added to todo list');
   };
@@ -218,7 +227,7 @@ export default function ProjectDetail() {
       }
 
       if (data?.strategyPack) {
-        setStrategyPack(project.id, data.strategyPack as StrategyPack);
+        await setStrategyPack(project.id, data.strategyPack as StrategyPack);
         toast.success('Strategy pack generated successfully!');
       } else if (data?.error) {
         toast.error(data.error);
@@ -238,7 +247,7 @@ export default function ProjectDetail() {
     }
 
     setGeneratingArticleId(articleId);
-    updateArticle(project.id, articleId, { status: 'in-progress' });
+    await updateArticle(project.id, articleId, { status: 'in-progress' });
 
     try {
       const brandVoice = project.brandVoice || masterSettings.defaultBrandVoice;
@@ -265,25 +274,25 @@ export default function ProjectDetail() {
 
       if (error) {
         console.error('Article generation error:', error);
-        updateArticle(project.id, articleId, { status: 'todo' });
+        await updateArticle(project.id, articleId, { status: 'todo' });
         toast.error('Failed to generate article');
         return;
       }
 
       if (data?.content) {
-        updateArticle(project.id, articleId, {
+        await updateArticle(project.id, articleId, {
           status: 'completed',
           content: data.content,
           wordCount: data.wordCount,
         });
         toast.success('Article generated successfully!');
       } else if (data?.error) {
-        updateArticle(project.id, articleId, { status: 'todo' });
+        await updateArticle(project.id, articleId, { status: 'todo' });
         toast.error(data.error);
       }
     } catch (err) {
       console.error('Article generation error:', err);
-      updateArticle(project.id, articleId, { status: 'todo' });
+      await updateArticle(project.id, articleId, { status: 'todo' });
       toast.error('Failed to generate article');
     } finally {
       setGeneratingArticleId(null);
@@ -308,7 +317,7 @@ export default function ProjectDetail() {
 
     for (const article of todoArticles) {
       setGeneratingArticleId(article.id);
-      updateArticle(project.id, article.id, { status: 'in-progress' });
+      await updateArticle(project.id, article.id, { status: 'in-progress' });
 
       try {
         const brandVoice = project.brandVoice || masterSettings.defaultBrandVoice;
@@ -333,10 +342,10 @@ export default function ProjectDetail() {
         });
 
         if (error || !data?.content) {
-          updateArticle(project.id, article.id, { status: 'todo' });
+          await updateArticle(project.id, article.id, { status: 'todo' });
           errorCount++;
         } else {
-          updateArticle(project.id, article.id, {
+          await updateArticle(project.id, article.id, {
             status: 'completed',
             content: data.content,
             wordCount: data.wordCount,
@@ -344,7 +353,7 @@ export default function ProjectDetail() {
           successCount++;
         }
       } catch (err) {
-        updateArticle(project.id, article.id, { status: 'todo' });
+        await updateArticle(project.id, article.id, { status: 'todo' });
         errorCount++;
       }
     }
@@ -359,10 +368,10 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleSaveArticleContent = (content: string) => {
+  const handleSaveArticleContent = async (content: string) => {
     if (!editingArticle) return;
     const wordCount = content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
-    updateArticle(project.id, editingArticle.id, { content, wordCount });
+    await updateArticle(project.id, editingArticle.id, { content, wordCount });
     setEditingArticle(null);
     toast.success('Article saved');
   };

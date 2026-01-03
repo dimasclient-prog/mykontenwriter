@@ -14,7 +14,143 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      articles: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          project_id: string
+          status: Database["public"]["Enums"]["article_status"]
+          title: string
+          updated_at: string
+          word_count: number | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          status?: Database["public"]["Enums"]["article_status"]
+          title: string
+          updated_at?: string
+          word_count?: number | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          status?: Database["public"]["Enums"]["article_status"]
+          title?: string
+          updated_at?: string
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articles_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      master_settings: {
+        Row: {
+          ai_provider: Database["public"]["Enums"]["ai_provider"]
+          api_key: string | null
+          created_at: string
+          default_article_length: number
+          default_brand_voice: string | null
+          default_model: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_provider?: Database["public"]["Enums"]["ai_provider"]
+          api_key?: string | null
+          created_at?: string
+          default_article_length?: number
+          default_brand_voice?: string | null
+          default_model?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_provider?: Database["public"]["Enums"]["ai_provider"]
+          api_key?: string | null
+          created_at?: string
+          default_article_length?: number
+          default_brand_voice?: string | null
+          default_model?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          brand_voice: string | null
+          business_context: string | null
+          created_at: string
+          custom_language: string | null
+          id: string
+          language: Database["public"]["Enums"]["project_language"]
+          mode: Database["public"]["Enums"]["project_mode"]
+          name: string
+          pain_points: string[] | null
+          persona: string | null
+          product: string | null
+          strategy_pack: Json | null
+          target_market: string | null
+          updated_at: string
+          user_id: string
+          value_proposition: string | null
+          website_url: string | null
+        }
+        Insert: {
+          brand_voice?: string | null
+          business_context?: string | null
+          created_at?: string
+          custom_language?: string | null
+          id?: string
+          language?: Database["public"]["Enums"]["project_language"]
+          mode?: Database["public"]["Enums"]["project_mode"]
+          name: string
+          pain_points?: string[] | null
+          persona?: string | null
+          product?: string | null
+          strategy_pack?: Json | null
+          target_market?: string | null
+          updated_at?: string
+          user_id: string
+          value_proposition?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          brand_voice?: string | null
+          business_context?: string | null
+          created_at?: string
+          custom_language?: string | null
+          id?: string
+          language?: Database["public"]["Enums"]["project_language"]
+          mode?: Database["public"]["Enums"]["project_mode"]
+          name?: string
+          pain_points?: string[] | null
+          persona?: string | null
+          product?: string | null
+          strategy_pack?: Json | null
+          target_market?: string | null
+          updated_at?: string
+          user_id?: string
+          value_proposition?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +159,10 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      ai_provider: "openai" | "gemini" | "deepseek" | "qwen"
+      article_status: "todo" | "in-progress" | "completed"
+      project_language: "indonesian" | "english" | "other"
+      project_mode: "auto" | "advanced"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +289,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      ai_provider: ["openai", "gemini", "deepseek", "qwen"],
+      article_status: ["todo", "in-progress", "completed"],
+      project_language: ["indonesian", "english", "other"],
+      project_mode: ["auto", "advanced"],
+    },
   },
 } as const
