@@ -278,11 +278,11 @@ export type Database = {
         Returns: boolean
       }
       user_has_editor_access: {
-        Args: { p_project_id: string; p_user_id: string }
+        Args: { p_email: string; p_project_id: string; p_user_id: string }
         Returns: boolean
       }
       user_has_project_access: {
-        Args: { p_project_id: string; p_user_id: string }
+        Args: { p_email: string; p_project_id: string; p_user_id: string }
         Returns: boolean
       }
     }
