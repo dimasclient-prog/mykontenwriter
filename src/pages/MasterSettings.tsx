@@ -11,49 +11,75 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { AIProvider, AI_MODELS, AI_PROVIDER_NAMES } from '@/types/project';
+import { AIProvider, AI_MODELS, AI_PROVIDER_NAMES, ProviderApiKeys } from '@/types/project';
 
 export default function MasterSettings() {
   const { masterSettings, updateMasterSettings, loading } = useData();
   const [showApiKey, setShowApiKey] = useState(false);
   const [localSettings, setLocalSettings] = useState(masterSettings);
-  const [currentApiKeyInput, setCurrentApiKeyInput] = useState('');
+  const [providerKeys, setProviderKeys] = useState<ProviderApiKeys>({
+    openai: '',
+    gemini: '',
+    deepseek: '',
+    qwen: '',
+  });
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'ok' | 'failed'>('idle');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingKeys, setIsLoadingKeys] = useState(true);
 
-  // Check if current provider has an API key saved
-  const hasApiKeyForProvider = (provider: AIProvider) => {
-    return localSettings.providerApiKeys[provider] !== '';
-  };
+  // Fetch decrypted API keys on mount
+  useEffect(() => {
+    const fetchApiKeys = async () => {
+      setIsLoadingKeys(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('get-api-keys');
+        
+        if (error) {
+          console.error('Error fetching API keys:', error);
+          return;
+        }
+
+        if (data) {
+          setProviderKeys({
+            openai: data.openai || '',
+            gemini: data.gemini || '',
+            deepseek: data.deepseek || '',
+            qwen: data.qwen || '',
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching API keys:', err);
+      } finally {
+        setIsLoadingKeys(false);
+      }
+    };
+
+    fetchApiKeys();
+  }, []);
 
   // Sync local settings when masterSettings changes
   useEffect(() => {
     setLocalSettings(masterSettings);
-    // Reset the input field when settings change
-    setCurrentApiKeyInput('');
-    setApiKeyStatus('idle');
   }, [masterSettings]);
 
+  // Get current API key for the selected provider
+  const currentApiKey = providerKeys[localSettings.aiProvider] || '';
+
   const handleSave = async () => {
-    // Check if we need to save a new API key
-    if (currentApiKeyInput.trim() && !currentApiKeyInput.startsWith('••••')) {
-      setIsSaving(true);
-      await updateMasterSettings({
-        ...localSettings,
-        apiKey: currentApiKeyInput,
-      });
-      setCurrentApiKeyInput('');
-      setIsSaving(false);
-      toast.success('Settings saved successfully');
-    } else if (!hasApiKeyForProvider(localSettings.aiProvider)) {
+    const keyToSave = providerKeys[localSettings.aiProvider];
+    
+    if (!keyToSave.trim()) {
       toast.error(`Please enter an API key for ${AI_PROVIDER_NAMES[localSettings.aiProvider]}`);
       return;
-    } else {
-      setIsSaving(true);
-      await updateMasterSettings(localSettings);
-      setIsSaving(false);
-      toast.success('Settings saved successfully');
     }
+
+    setIsSaving(true);
+    await updateMasterSettings({
+      ...localSettings,
+      apiKey: keyToSave,
+    });
+    setIsSaving(false);
+    toast.success('Settings saved successfully');
   };
 
   const handleChange = <K extends keyof typeof localSettings>(
@@ -63,23 +89,29 @@ export default function MasterSettings() {
     setLocalSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleApiKeyChange = (value: string) => {
+    setProviderKeys((prev) => ({
+      ...prev,
+      [localSettings.aiProvider]: value,
+    }));
+    setApiKeyStatus('idle');
+  };
+
   const handleProviderChange = (provider: AIProvider) => {
     const models = AI_MODELS[provider];
     setLocalSettings((prev) => ({
       ...prev,
       aiProvider: provider,
       defaultModel: models[0],
-      apiKey: prev.providerApiKeys[provider] || '',
     }));
-    setCurrentApiKeyInput('');
     setApiKeyStatus('idle');
   };
 
   const handleTestApiKey = async () => {
-    const keyToTest = currentApiKeyInput.trim() || '';
+    const keyToTest = providerKeys[localSettings.aiProvider];
     
-    if (!keyToTest || keyToTest.startsWith('••••')) {
-      toast.error('Please enter a new API key to test');
+    if (!keyToTest.trim()) {
+      toast.error('Please enter an API key to test');
       return;
     }
 
@@ -116,9 +148,8 @@ export default function MasterSettings() {
   };
 
   const currentModels = AI_MODELS[localSettings.aiProvider];
-  const currentProviderHasKey = hasApiKeyForProvider(localSettings.aiProvider);
 
-  if (loading) {
+  if (loading || isLoadingKeys) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -166,7 +197,7 @@ export default function MasterSettings() {
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(AI_PROVIDER_NAMES).map(([value, label]) => {
-                      const hasKey = hasApiKeyForProvider(value as AIProvider);
+                      const hasKey = !!providerKeys[value as AIProvider];
                       return (
                         <SelectItem key={value} value={value}>
                           <div className="flex items-center gap-2">
@@ -203,7 +234,7 @@ export default function MasterSettings() {
             </div>
 
             {/* API Key Status Alert */}
-            {!currentProviderHasKey && (
+            {!currentApiKey && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
@@ -212,30 +243,27 @@ export default function MasterSettings() {
               </Alert>
             )}
 
-            {currentProviderHasKey && (
+            {currentApiKey && (
               <Alert>
                 <CheckCircle className="h-4 w-4 text-success" />
                 <AlertDescription>
-                  API key for {AI_PROVIDER_NAMES[localSettings.aiProvider]} is configured. Enter a new key below to update it.
+                  API key for {AI_PROVIDER_NAMES[localSettings.aiProvider]} is configured.
                 </AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="apiKey">
-                {currentProviderHasKey ? 'Update API Key' : 'API Key'} ({AI_PROVIDER_NAMES[localSettings.aiProvider]})
+                API Key ({AI_PROVIDER_NAMES[localSettings.aiProvider]})
               </Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Input
                     id="apiKey"
                     type={showApiKey ? 'text' : 'password'}
-                    value={currentApiKeyInput}
-                    onChange={(e) => {
-                      setCurrentApiKeyInput(e.target.value);
-                      setApiKeyStatus('idle');
-                    }}
-                    placeholder={currentProviderHasKey ? 'Enter new API key to update...' : 'Enter your API key'}
+                    value={currentApiKey}
+                    onChange={(e) => handleApiKeyChange(e.target.value)}
+                    placeholder="Enter your API key"
                     className="pr-10"
                   />
                   <Button
@@ -251,7 +279,7 @@ export default function MasterSettings() {
                 <Button
                   variant="outline"
                   onClick={handleTestApiKey}
-                  disabled={apiKeyStatus === 'testing' || !currentApiKeyInput.trim()}
+                  disabled={apiKeyStatus === 'testing' || !currentApiKey.trim()}
                   className="gap-2 shrink-0"
                 >
                   {apiKeyStatus === 'testing' ? (
