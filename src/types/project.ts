@@ -5,7 +5,7 @@ export type ProjectLanguage = 'indonesian' | 'english' | 'other';
 export type AIProvider = 'openai' | 'gemini' | 'deepseek' | 'qwen';
 
 export const AI_MODELS: Record<AIProvider, string[]> = {
-  openai: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4', 'o3', 'o3-mini'],
+  openai: ['gpt-5.2', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4', 'o3', 'o3-mini'],
   gemini: ['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'],
   deepseek: ['deepseek-v2', 'deepseek-v2.5', 'deepseek-r1'],
   qwen: ['qwen2.5-72b-instruct', 'qwen2.5-32b-instruct', 'qwen2.5-14b-instruct'],
