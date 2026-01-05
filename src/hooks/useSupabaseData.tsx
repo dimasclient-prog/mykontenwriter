@@ -8,12 +8,21 @@ import {
   StrategyPack,
   ProjectMode,
   ProjectLanguage,
-  AIProvider
+  AIProvider,
+  ProviderApiKeys
 } from '@/types/project';
+
+const defaultProviderApiKeys: ProviderApiKeys = {
+  openai: '',
+  gemini: '',
+  deepseek: '',
+  qwen: '',
+};
 
 const defaultMasterSettings: MasterSettings = {
   aiProvider: 'openai',
   apiKey: '',
+  providerApiKeys: defaultProviderApiKeys,
   defaultModel: 'gpt-4.1',
   defaultArticleLength: 500,
   defaultBrandVoice: 'Professional, informative, and helpful',
@@ -42,9 +51,21 @@ export function useSupabaseData() {
     }
 
     if (data) {
+      const dbData = data as Record<string, unknown>;
+      const provider = data.ai_provider as AIProvider;
+      
+      // Build provider API keys object (we store encrypted, so we just track if they exist)
+      const providerApiKeys: ProviderApiKeys = {
+        openai: dbData.openai_api_key ? '••••••••' : '',
+        gemini: dbData.gemini_api_key ? '••••••••' : '',
+        deepseek: dbData.deepseek_api_key ? '••••••••' : '',
+        qwen: dbData.qwen_api_key ? '••••••••' : '',
+      };
+      
       setMasterSettings({
-        aiProvider: data.ai_provider as AIProvider,
-        apiKey: data.api_key || '',
+        aiProvider: provider,
+        apiKey: providerApiKeys[provider] || '',
+        providerApiKeys,
         defaultModel: data.default_model,
         defaultArticleLength: data.default_article_length,
         defaultBrandVoice: data.default_brand_voice || '',
@@ -154,38 +175,51 @@ export function useSupabaseData() {
     if (!user) return;
 
     const newSettings = { ...masterSettings, ...settings };
+    
+    // If provider API keys are being updated, merge them
+    if (settings.providerApiKeys) {
+      newSettings.providerApiKeys = { ...masterSettings.providerApiKeys, ...settings.providerApiKeys };
+    }
+    
     setMasterSettings(newSettings);
 
-    // If API key is being updated, encrypt it first
-    let apiKeyToStore = newSettings.apiKey;
-    if (settings.apiKey !== undefined && settings.apiKey.trim() !== '') {
-      // Call edge function to encrypt the API key
+    // Build the update object
+    const updateData: Record<string, unknown> = {
+      user_id: user.id,
+      ai_provider: newSettings.aiProvider,
+      default_model: newSettings.defaultModel,
+      default_article_length: newSettings.defaultArticleLength,
+      default_brand_voice: newSettings.defaultBrandVoice,
+    };
+
+    // If API key is being updated for the current provider, encrypt and store it
+    if (settings.apiKey !== undefined && settings.apiKey.trim() !== '' && !settings.apiKey.startsWith('••••')) {
       const { data: encryptedData, error: encryptError } = await supabase.rpc('encrypt_api_key', {
         plain_key: settings.apiKey
       });
       
       if (encryptError) {
         console.error('Error encrypting API key:', encryptError);
-        // Continue with plaintext if encryption fails (for backwards compatibility)
       } else {
-        apiKeyToStore = encryptedData;
+        // Store encrypted key in the provider-specific column
+        const keyColumn = `${newSettings.aiProvider}_api_key`;
+        updateData[keyColumn] = encryptedData;
+        
+        // Also update the legacy api_key column for backwards compatibility
+        updateData.api_key = encryptedData;
       }
     }
 
     const { error } = await supabase
       .from('master_settings')
-      .upsert({
-        user_id: user.id,
-        ai_provider: newSettings.aiProvider,
-        api_key: apiKeyToStore,
-        default_model: newSettings.defaultModel,
-        default_article_length: newSettings.defaultArticleLength,
-        default_brand_voice: newSettings.defaultBrandVoice,
-      }, { onConflict: 'user_id' });
+      .upsert(updateData as any, { onConflict: 'user_id' });
 
     if (error) {
       console.error('Error updating master settings:', error);
     }
+    
+    // Refetch to get updated state
+    await fetchMasterSettings();
   };
 
   // Create project

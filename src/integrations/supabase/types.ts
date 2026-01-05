@@ -60,10 +60,14 @@ export type Database = {
           ai_provider: Database["public"]["Enums"]["ai_provider"]
           api_key: string | null
           created_at: string
+          deepseek_api_key: string | null
           default_article_length: number
           default_brand_voice: string | null
           default_model: string
+          gemini_api_key: string | null
           id: string
+          openai_api_key: string | null
+          qwen_api_key: string | null
           updated_at: string
           user_id: string
         }
@@ -71,10 +75,14 @@ export type Database = {
           ai_provider?: Database["public"]["Enums"]["ai_provider"]
           api_key?: string | null
           created_at?: string
+          deepseek_api_key?: string | null
           default_article_length?: number
           default_brand_voice?: string | null
           default_model?: string
+          gemini_api_key?: string | null
           id?: string
+          openai_api_key?: string | null
+          qwen_api_key?: string | null
           updated_at?: string
           user_id: string
         }
@@ -82,10 +90,14 @@ export type Database = {
           ai_provider?: Database["public"]["Enums"]["ai_provider"]
           api_key?: string | null
           created_at?: string
+          deepseek_api_key?: string | null
           default_article_length?: number
           default_brand_voice?: string | null
           default_model?: string
+          gemini_api_key?: string | null
           id?: string
+          openai_api_key?: string | null
+          qwen_api_key?: string | null
           updated_at?: string
           user_id?: string
         }
