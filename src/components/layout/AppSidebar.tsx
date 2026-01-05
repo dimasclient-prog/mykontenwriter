@@ -22,7 +22,11 @@ import {
 } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  onNavigate?: () => void;
+}
+
+export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { projects, activeProjectId, setActiveProject, loading } = useData();
@@ -32,6 +36,7 @@ export function AppSidebar() {
   const handleProjectClick = (projectId: string) => {
     setActiveProject(projectId);
     navigate(`/project/${projectId}`);
+    onNavigate?.();
   };
 
   const handleLogout = async () => {
@@ -45,6 +50,11 @@ export function AppSidebar() {
     }
     
     navigate('/auth');
+    onNavigate?.();
+  };
+
+  const handleNavClick = () => {
+    onNavigate?.();
   };
 
   return (
@@ -66,6 +76,7 @@ export function AppSidebar() {
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         <NavLink
           to="/"
+          onClick={handleNavClick}
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
@@ -81,6 +92,7 @@ export function AppSidebar() {
 
         <NavLink
           to="/settings"
+          onClick={handleNavClick}
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
@@ -127,6 +139,7 @@ export function AppSidebar() {
                 ))}
                 <NavLink
                   to="/project/new"
+                  onClick={handleNavClick}
                   className="flex items-center gap-3 w-full px-3 py-2 pl-10 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -149,7 +162,10 @@ export function AppSidebar() {
           <Button
             variant="outline"
             className="flex-1 justify-start gap-2 text-muted-foreground"
-            onClick={() => navigate('/project/new')}
+            onClick={() => {
+              navigate('/project/new');
+              onNavigate?.();
+            }}
           >
             <Plus className="w-4 h-4" />
             New
