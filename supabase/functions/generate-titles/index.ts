@@ -7,9 +7,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+type ArticleType = 
+  | 'pov'
+  | 'review'
+  | 'expert-opinion'
+  | 'listicle'
+  | 'comparison'
+  | 'how-to'
+  | 'myth-vs-fact'
+  | 'case-breakdown'
+  | 'trend-analysis'
+  | 'problem-solution';
+
+type FunnelType = 'tofu' | 'mofu' | 'bofu';
+
 interface TitlesRequest {
   count: number;
   existingTitles: string[];
+  articleTypes?: ArticleType[];
+  funnelType?: FunnelType;
   projectData: {
     language: string;
     keywords?: string[];
@@ -19,11 +35,36 @@ interface TitlesRequest {
     corePainPoints?: string[];
     product?: string;
     targetMarket?: string;
+    brandVoice?: string;
+    businessContext?: string;
   };
 }
 
+const ARTICLE_TYPE_LABELS: Record<ArticleType, string> = {
+  'pov': 'POV (Point of View)',
+  'review': 'Review',
+  'expert-opinion': 'Expert Opinion',
+  'listicle': 'Listicle',
+  'comparison': 'Comparison',
+  'how-to': 'How-to / Tutorial',
+  'myth-vs-fact': 'Myth vs Fact',
+  'case-breakdown': 'Case Breakdown',
+  'trend-analysis': 'Trend Analysis',
+  'problem-solution': 'Problem–Solution Story',
+};
+
+const FUNNEL_TYPE_DESCRIPTIONS: Record<FunnelType, string> = {
+  'tofu': 'Top of Funnel (TOFU) - Educational, awareness-focused content. Focus on informing and educating the reader about problems and concepts.',
+  'mofu': 'Middle of Funnel (MOFU) - Comparison and consideration content. Help readers evaluate options and understand differences.',
+  'bofu': 'Bottom of Funnel (BOFU) - Solution-oriented content. Present solutions in a soft, non-salesy manner.',
+};
+
 async function callOpenAI(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
   const modelMap: Record<string, string> = {
+    'gpt-5.2': 'gpt-5-2025-08-07',
+    'gpt-5': 'gpt-5-2025-08-07',
+    'gpt-5-mini': 'gpt-5-mini-2025-08-07',
+    'gpt-5-nano': 'gpt-5-nano-2025-08-07',
     'gpt-4.1': 'gpt-4.1-2025-04-14',
     'gpt-4.1-mini': 'gpt-4.1-mini-2025-04-14',
     'gpt-4o': 'gpt-4o',
@@ -34,7 +75,7 @@ async function callOpenAI(apiKey: string, model: string, systemPrompt: string, u
   };
 
   const actualModel = modelMap[model] || 'gpt-4o-mini';
-  const isNewModel = ['gpt-4.1', 'gpt-4.1-mini', 'o4', 'o3', 'o3-mini'].includes(model);
+  const isNewModel = ['gpt-5.2', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4.1-mini', 'o4', 'o3', 'o3-mini'].includes(model);
 
   const body: Record<string, unknown> = {
     model: actualModel,
@@ -190,11 +231,24 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const { apiKey, provider, model } = await getUserCredentials(authHeader);
 
-    const { count, existingTitles, projectData } = await req.json() as TitlesRequest;
+    const { count, existingTitles, articleTypes, funnelType, projectData } = await req.json() as TitlesRequest;
 
     console.log(`Generating ${count} article titles using ${provider}/${model}`);
+    console.log(`Article types: ${articleTypes?.join(', ') || 'default'}`);
+    console.log(`Funnel type: ${funnelType || 'tofu'}`);
 
     const languageInstruction = projectData.language.charAt(0).toUpperCase() + projectData.language.slice(1);
+
+    // Build article types instruction
+    let articleTypesInfo = '';
+    if (articleTypes && articleTypes.length > 0) {
+      const typeLabels = articleTypes.map(t => ARTICLE_TYPE_LABELS[t]).join(', ');
+      articleTypesInfo = `\nSELECTED ARTICLE TYPES (titles MUST clearly reflect these types):\n${typeLabels}\n`;
+    }
+
+    // Build funnel type instruction
+    const selectedFunnel = funnelType || 'tofu';
+    const funnelInfo = `\nFUNNEL TYPE:\n${FUNNEL_TYPE_DESCRIPTIONS[selectedFunnel]}\n`;
 
     // Build context from various sources
     let contextInfo = '';
@@ -223,6 +277,14 @@ serve(async (req) => {
       contextInfo += `\nTARGET MARKET: ${projectData.targetMarket}\n`;
     }
 
+    if (projectData.brandVoice) {
+      contextInfo += `\nBRAND VOICE: ${projectData.brandVoice}\n`;
+    }
+
+    if (projectData.businessContext) {
+      contextInfo += `\nBUSINESS CONTEXT: ${projectData.businessContext}\n`;
+    }
+
     if (projectData.referenceText) {
       const truncatedRef = projectData.referenceText.substring(0, 2000);
       contextInfo += `\nREFERENCE CONTEXT:\n${truncatedRef}${projectData.referenceText.length > 2000 ? '...' : ''}\n`;
@@ -242,20 +304,34 @@ You must respond with a valid JSON object containing:
   "titles": ["title 1", "title 2", "title 3", ...]
 }
 
-Requirements:
-- Generate exactly ${count} unique article titles
+TITLE GENERATION RULES:
+- Generate EXACTLY ${count} unique article titles
+- Titles MUST reflect the selected ARTICLE TYPES
+- Titles MUST match the selected FUNNEL TYPE intent
 - Titles must be SEO-friendly and search-intent optimized
-- Titles must be TOFU (Top of Funnel) focused - educational and informative
 - Each title must be different from existing titles (not similar in meaning or phrasing)
 - Use the provided keywords, topics, and reference context as inspiration
 - Titles should be engaging and click-worthy while remaining informative
-- Avoid clickbait - focus on delivering value`;
+- Avoid clickbait - focus on delivering value
+- Titles must be relevant to the client's business
+- Titles must be pain-point driven
+- Titles must be natural and human-like
+- NO numbering, NO bullet symbols in titles`;
 
-    const userPrompt = `Generate ${count} unique SEO article titles based on this context:
+    const userPrompt = `Generate EXACTLY ${count} unique SEO article titles based on this configuration:
+${articleTypesInfo}
+${funnelInfo}
+
+PROJECT CONTEXT:
 ${contextInfo}
 ${existingTitlesInfo}
 
-Remember: All titles must be in ${languageInstruction} language and must NOT be similar to any existing titles.`;
+IMPORTANT REMINDERS:
+- All titles MUST be in ${languageInstruction} language
+- Each title MUST clearly reflect at least one of the selected article types
+- Each title MUST match the ${selectedFunnel.toUpperCase()} funnel intent
+- Titles must NOT be similar to any existing titles
+- Generate EXACTLY ${count} titles, no more, no less`;
 
     let result: string;
     switch (provider) {
