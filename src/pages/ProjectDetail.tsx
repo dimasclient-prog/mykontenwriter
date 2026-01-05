@@ -16,7 +16,8 @@ import {
   Loader2,
   Eye,
   Zap,
-  Key
+  Key,
+  Lightbulb
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -65,6 +66,8 @@ export default function ProjectDetail() {
   const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
   const [generatingArticleId, setGeneratingArticleId] = useState<string | null>(null);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+  const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
+  const [titleCount, setTitleCount] = useState(5);
   
   // Article editor state
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
@@ -402,6 +405,65 @@ export default function ProjectDetail() {
     }
   };
 
+  const handleGenerateTitles = async () => {
+    if (!masterSettings.apiKey) {
+      toast.error('Please configure your API key in Master Settings first');
+      return;
+    }
+
+    if (titleCount < 1 || titleCount > 50) {
+      toast.error('Please enter a number between 1 and 50');
+      return;
+    }
+
+    setIsGeneratingTitles(true);
+
+    try {
+      const existingTitles = project.articles.map((a) => a.title);
+
+      const { data, error } = await supabase.functions.invoke('generate-titles', {
+        body: {
+          apiKey: masterSettings.apiKey,
+          provider: masterSettings.aiProvider,
+          model: masterSettings.defaultModel,
+          count: titleCount,
+          existingTitles,
+          projectData: {
+            language: getProjectLanguage(),
+            keywords: project.keywords || [],
+            topicClusters: project.strategyPack?.topicClusters,
+            referenceText: project.referenceText,
+            personaSummary: project.strategyPack?.personaSummary,
+            corePainPoints: project.strategyPack?.corePainPoints,
+            product: project.product,
+            targetMarket: project.targetMarket,
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Title generation error:', error);
+        toast.error('Failed to generate article titles');
+        return;
+      }
+
+      if (data?.titles && Array.isArray(data.titles)) {
+        // Add all generated titles as new articles
+        for (const title of data.titles) {
+          await addArticle(project.id, title);
+        }
+        toast.success(`Generated ${data.titles.length} article titles!`);
+      } else if (data?.error) {
+        toast.error(data.error);
+      }
+    } catch (err) {
+      console.error('Title generation error:', err);
+      toast.error('Failed to generate article titles');
+    } finally {
+      setIsGeneratingTitles(false);
+    }
+  };
+
   const handleSaveArticleContent = async (content: string) => {
     if (!editingArticle) return;
     const wordCount = content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
@@ -729,6 +791,47 @@ export default function ProjectDetail() {
 
         {/* Articles Tab */}
         <TabsContent value="articles" className="space-y-6">
+          {/* Generate Title Ideas Card */}
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="w-5 h-5 text-primary" />
+                <CardTitle className="text-lg">Generate Article Ideas</CardTitle>
+              </div>
+              <CardDescription>
+                Generate new article title ideas based on your keywords, topics, and reference context
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="titleCount" className="whitespace-nowrap">Number of titles:</Label>
+                  <Input
+                    id="titleCount"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={titleCount}
+                    onChange={(e) => setTitleCount(parseInt(e.target.value) || 5)}
+                    className="w-20"
+                  />
+                </div>
+                <Button
+                  onClick={handleGenerateTitles}
+                  disabled={isGeneratingTitles || isBatchGenerating}
+                  className="gap-2"
+                >
+                  {isGeneratingTitles ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Lightbulb className="w-4 h-4" />
+                  )}
+                  {isGeneratingTitles ? 'Generating...' : 'Generate Ideas'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <div>
