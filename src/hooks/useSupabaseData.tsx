@@ -141,6 +141,10 @@ export function useSupabaseData() {
       businessEmail: (p as Record<string, unknown>).business_email as string || undefined,
       referenceText: (p as Record<string, unknown>).reference_text as string || undefined,
       referenceFileUrl: (p as Record<string, unknown>).reference_file_url as string || undefined,
+      // WordPress integration
+      wordpressUrl: (p as Record<string, unknown>).wordpress_url as string || undefined,
+      wordpressUsername: (p as Record<string, unknown>).wordpress_username as string || undefined,
+      wordpressPassword: (p as Record<string, unknown>).wordpress_password as string || undefined,
       strategyPack: p.strategy_pack ? (p.strategy_pack as unknown as StrategyPack) : undefined,
       articles: articlesMap.get(p.id) || [],
       createdAt: new Date(p.created_at),
@@ -277,6 +281,10 @@ export function useSupabaseData() {
     if (updates.businessEmail !== undefined) dbUpdates.business_email = updates.businessEmail;
     if (updates.referenceText !== undefined) dbUpdates.reference_text = updates.referenceText;
     if (updates.referenceFileUrl !== undefined) dbUpdates.reference_file_url = updates.referenceFileUrl;
+    // WordPress integration
+    if (updates.wordpressUrl !== undefined) dbUpdates.wordpress_url = updates.wordpressUrl;
+    if (updates.wordpressUsername !== undefined) dbUpdates.wordpress_username = updates.wordpressUsername;
+    if (updates.wordpressPassword !== undefined) dbUpdates.wordpress_password = updates.wordpressPassword;
 
     const { error } = await supabase
       .from('projects')

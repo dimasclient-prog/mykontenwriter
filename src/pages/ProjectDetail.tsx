@@ -17,7 +17,15 @@ import {
   Eye,
   Zap,
   Key,
-  Lightbulb
+  Lightbulb,
+  RefreshCw,
+  Send,
+  ExternalLink,
+  BarChart3,
+  Target,
+  Users,
+  TrendingUp,
+  Layers
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -28,6 +36,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -71,6 +80,10 @@ export default function ProjectDetail() {
   
   // Article editor state
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  
+  // WordPress publishing state
+  const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
+  const [isPublishingToWordPress, setIsPublishingToWordPress] = useState(false);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -94,6 +107,10 @@ export default function ProjectDetail() {
         businessEmail: project.businessEmail,
         referenceText: project.referenceText,
         referenceFileUrl: project.referenceFileUrl,
+        // WordPress settings
+        wordpressUrl: project.wordpressUrl,
+        wordpressUsername: project.wordpressUsername,
+        wordpressPassword: project.wordpressPassword,
       });
       setIsDirty(false);
     }
@@ -148,6 +165,10 @@ export default function ProjectDetail() {
         businessEmail: project.businessEmail,
         referenceText: project.referenceText,
         referenceFileUrl: project.referenceFileUrl,
+        // WordPress settings
+        wordpressUrl: project.wordpressUrl,
+        wordpressUsername: project.wordpressUsername,
+        wordpressPassword: project.wordpressPassword,
       });
     }
     setIsDirty(false);
@@ -435,6 +456,86 @@ export default function ProjectDetail() {
     }
   };
 
+  // WordPress publishing
+  const handlePublishToWordPress = async () => {
+    if (selectedArticles.size === 0) {
+      toast.error('Please select at least one article to publish');
+      return;
+    }
+
+    const wpUrl = localProject.wordpressUrl || project.wordpressUrl;
+    const wpUsername = localProject.wordpressUsername || project.wordpressUsername;
+    const wpPassword = localProject.wordpressPassword || project.wordpressPassword;
+
+    if (!wpUrl || !wpUsername || !wpPassword) {
+      toast.error('Please configure WordPress settings first');
+      return;
+    }
+
+    setIsPublishingToWordPress(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    const articlesToPublish = project.articles.filter(a => 
+      selectedArticles.has(a.id) && a.status === 'completed' && a.content
+    );
+
+    for (const article of articlesToPublish) {
+      try {
+        const { data, error } = await supabase.functions.invoke('publish-to-wordpress', {
+          body: {
+            wordpressUrl: wpUrl,
+            username: wpUsername,
+            password: wpPassword,
+            title: article.title,
+            content: article.content,
+            status: 'draft',
+          },
+        });
+
+        if (error || !data?.success) {
+          console.error('WordPress publish error:', error || data?.error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      } catch (err) {
+        console.error('WordPress publish error:', err);
+        errorCount++;
+      }
+    }
+
+    setIsPublishingToWordPress(false);
+    setSelectedArticles(new Set());
+
+    if (errorCount === 0) {
+      toast.success(`Published ${successCount} article(s) as drafts to WordPress`);
+    } else if (successCount > 0) {
+      toast.warning(`Published ${successCount}, failed ${errorCount} article(s)`);
+    } else {
+      toast.error('Failed to publish articles to WordPress');
+    }
+  };
+
+  const toggleArticleSelection = (articleId: string) => {
+    setSelectedArticles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(articleId)) {
+        newSet.delete(articleId);
+      } else {
+        newSet.add(articleId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllCompletedArticles = () => {
+    const completedIds = project.articles
+      .filter(a => a.status === 'completed' && a.content)
+      .map(a => a.id);
+    setSelectedArticles(new Set(completedIds));
+  };
+
   const handleSaveArticleContent = async (content: string) => {
     if (!editingArticle) return;
     const wordCount = content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
@@ -530,65 +631,211 @@ export default function ProjectDetail() {
             <Key className="w-3 h-3" />
             Keywords ({(localProject.keywords || []).length})
           </TabsTrigger>
-          <TabsTrigger value="strategy">Strategy Pack</TabsTrigger>
+          <TabsTrigger value="strategy">Market Insight</TabsTrigger>
           <TabsTrigger value="articles">Articles ({project.articles.length})</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
+        {/* Overview Tab - Dashboard */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Stats Row */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Mode</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  Mode
+                </CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center gap-3">
-                {(localProject.mode || project.mode) === 'auto' ? (
-                  <Globe className="w-5 h-5 text-primary" />
-                ) : (
-                  <Pencil className="w-5 h-5 text-primary" />
-                )}
-                <span className="font-semibold capitalize">
-                  {(localProject.mode || project.mode) === 'auto' ? 'Auto' : 'Advanced'} Mode
+              <CardContent>
+                <span className="text-2xl font-bold capitalize">
+                  {(localProject.mode || project.mode) === 'auto' ? 'Auto' : 'Advanced'}
                 </span>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Language</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  Language
+                </CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center gap-3">
-                <Languages className="w-5 h-5 text-primary" />
-                <span className="font-semibold">{getLanguageLabel()}</span>
+              <CardContent>
+                <span className="text-2xl font-bold">{getLanguageLabel()}</span>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Articles</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Articles
+                </CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center gap-3">
-                <FileText className="w-5 h-5 text-primary" />
-                <span className="font-semibold">
-                  {project.articles.filter((a) => a.status === 'completed').length}/
-                  {project.articles.length} completed
+              <CardContent>
+                <span className="text-2xl font-bold">
+                  {project.articles.filter((a) => a.status === 'completed').length}
+                  <span className="text-muted-foreground text-lg font-normal">/{project.articles.length}</span>
                 </span>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Key className="w-4 h-4" />
+                  Keywords
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <span className="text-2xl font-bold">{(localProject.keywords || []).length}</span>
               </CardContent>
             </Card>
           </div>
 
+          {/* Progress Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Article Status Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  Article Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-success" />
+                      <span>Completed</span>
+                    </div>
+                    <Badge className="bg-success/20 text-success border-success/30">
+                      {project.articles.filter((a) => a.status === 'completed').length}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-warning" />
+                      <span>In Progress</span>
+                    </div>
+                    <Badge className="bg-warning/20 text-warning border-warning/30">
+                      {project.articles.filter((a) => a.status === 'in-progress').length}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                      <span>Todo</span>
+                    </div>
+                    <Badge variant="outline">
+                      {project.articles.filter((a) => a.status === 'todo').length}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Market Insight Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-primary" />
+                  Market Insight
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {project.strategyPack ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Persona</span>
+                      <Check className="w-4 h-4 text-success" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Pain Points</span>
+                      <Badge variant="secondary">{project.strategyPack.corePainPoints.length}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Topic Clusters</span>
+                      <Badge variant="secondary">{project.strategyPack.topicClusters.length}</Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground mb-3">No market insight generated yet</p>
+                    <Button 
+                      size="sm"
+                      onClick={handleGenerateStrategy}
+                      disabled={isGeneratingStrategy}
+                      className="gap-2"
+                    >
+                      {isGeneratingStrategy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      Generate
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Business Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                Business Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Business Name</span>
+                    <p className="font-medium">{localProject.businessName || project.businessName || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Website</span>
+                    <p className="font-medium">
+                      {localProject.websiteUrl || project.websiteUrl ? (
+                        <a href={localProject.websiteUrl || project.websiteUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                          {localProject.websiteUrl || project.websiteUrl}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : '-'}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Product/Service</span>
+                    <p className="font-medium">{localProject.product || project.product || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Target Market</span>
+                    <p className="font-medium">{localProject.targetMarket || project.targetMarket || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
           {!project.strategyPack && (
             <Card className="border-dashed border-2">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                   <Sparkles className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Generate Strategy Pack</h3>
+                <h3 className="text-xl font-semibold mb-2">Generate Market Insight</h3>
                 <p className="text-muted-foreground text-center mb-6 max-w-md">
                   {project.mode === 'auto' 
-                    ? 'Enter your website URL to analyze and generate a comprehensive SEO strategy.'
-                    : 'Fill in your business details to generate a comprehensive SEO strategy.'}
+                    ? 'Enter your website URL to analyze and generate comprehensive market insights.'
+                    : 'Fill in your business details to generate comprehensive market insights.'}
                 </p>
                 <Button 
                   className="gap-2" 
@@ -600,7 +847,7 @@ export default function ProjectDetail() {
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {isGeneratingStrategy ? 'Generating...' : 'Generate Strategy'}
+                  {isGeneratingStrategy ? 'Generating...' : 'Generate Market Insight'}
                 </Button>
               </CardContent>
             </Card>
@@ -615,129 +862,85 @@ export default function ProjectDetail() {
           />
         </TabsContent>
 
-        {/* Strategy Pack Tab */}
+        {/* Market Insight Tab */}
         <TabsContent value="strategy" className="space-y-6">
-          {(localProject.mode || project.mode) === 'auto' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Website Analysis</CardTitle>
-                <CardDescription>Enter the website URL to analyze</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          {/* Generate/Regenerate Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    {project.strategyPack ? 'Regenerate Market Insight' : 'Generate Market Insight'}
+                  </CardTitle>
+                  <CardDescription>
+                    {project.strategyPack 
+                      ? 'Not satisfied with the results? Regenerate to get new insights'
+                      : (localProject.mode || project.mode) === 'auto' 
+                        ? 'Enter your website URL to analyze and generate market insights'
+                        : 'Fill in business details in Settings tab first, then generate insights'}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {(localProject.mode || project.mode) === 'auto' && (
                 <div className="space-y-2">
                   <Label htmlFor="websiteUrl">Website URL</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="websiteUrl"
-                      value={localProject.websiteUrl || ''}
-                      onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
-                      placeholder="https://example.com"
-                    />
-                    <Button 
-                      className="gap-2 shrink-0"
-                      onClick={handleGenerateStrategy}
-                      disabled={isGeneratingStrategy}
-                    >
-                      {isGeneratingStrategy ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4" />
-                      )}
-                      {isGeneratingStrategy ? 'Analyzing...' : 'Analyze'}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Business Details</CardTitle>
-                <CardDescription>Provide detailed information about the business</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="product">Product/Service</Label>
-                    <Input
-                      id="product"
-                      value={localProject.product || ''}
-                      onChange={(e) => handleLocalChange('product', e.target.value)}
-                      placeholder="What does the business sell?"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="targetMarket">Target Market</Label>
-                    <Input
-                      id="targetMarket"
-                      value={localProject.targetMarket || ''}
-                      onChange={(e) => handleLocalChange('targetMarket', e.target.value)}
-                      placeholder="Who is the target audience?"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="persona">Persona</Label>
-                  <Textarea
-                    id="persona"
-                    value={localProject.persona || ''}
-                    onChange={(e) => handleLocalChange('persona', e.target.value)}
-                    placeholder="Describe the ideal customer persona..."
-                    rows={3}
+                  <Input
+                    id="websiteUrl"
+                    value={localProject.websiteUrl || ''}
+                    onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
+                    placeholder="https://example.com"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="valueProposition">Value Proposition</Label>
-                  <Textarea
-                    id="valueProposition"
-                    value={localProject.valueProposition || ''}
-                    onChange={(e) => handleLocalChange('valueProposition', e.target.value)}
-                    placeholder="What unique value does the business offer?"
-                    rows={3}
-                  />
-                </div>
-
-                <Button 
-                  className="gap-2"
-                  onClick={handleGenerateStrategy}
-                  disabled={isGeneratingStrategy}
-                >
-                  {isGeneratingStrategy ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  {isGeneratingStrategy ? 'Generating...' : 'Generate Strategy Pack'}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+              )}
+              <Button 
+                className="gap-2"
+                onClick={handleGenerateStrategy}
+                disabled={isGeneratingStrategy}
+              >
+                {isGeneratingStrategy ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : project.strategyPack ? (
+                  <RefreshCw className="w-4 h-4" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {isGeneratingStrategy ? 'Generating...' : project.strategyPack ? 'Regenerate' : 'Generate'}
+              </Button>
+            </CardContent>
+          </Card>
 
           {project.strategyPack && (
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Persona Summary</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-primary" />
+                    Persona Summary
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p>{project.strategyPack.personaSummary}</p>
+                  <p className="text-foreground">{project.strategyPack.personaSummary}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Core Pain Points</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="w-5 h-5 text-primary" />
+                    Core Pain Points
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2">
+                  <ul className="space-y-3">
                     {project.strategyPack.corePainPoints.map((point, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs text-primary shrink-0">
+                      <li key={i} className="flex items-start gap-3">
+                        <span className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary shrink-0">
                           {i + 1}
                         </span>
-                        <span>{point}</span>
+                        <span className="pt-1">{point}</span>
                       </li>
                     ))}
                   </ul>
@@ -746,17 +949,48 @@ export default function ProjectDetail() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Topic Clusters</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-primary" />
+                    Topic Clusters
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
                     {project.strategyPack.topicClusters.map((cluster, i) => (
-                      <Badge key={i} variant="secondary">{cluster}</Badge>
+                      <Badge key={i} variant="secondary" className="text-sm py-1 px-3">{cluster}</Badge>
                     ))}
                   </div>
                 </CardContent>
               </Card>
+
+              {project.strategyPack.tofuSearchIntent && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Lightbulb className="w-5 h-5 text-primary" />
+                      Top-of-Funnel Search Intent
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-foreground">{project.strategyPack.tofuSearchIntent}</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
+          )}
+
+          {!project.strategyPack && (
+            <Card className="border-dashed border-2">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                  <TrendingUp className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">No Market Insight Yet</h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  Generate market insights to understand your target persona, pain points, and topic clusters for content creation.
+                </p>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
@@ -840,6 +1074,44 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
+          {/* WordPress Publish Section */}
+          {(localProject.wordpressUrl || project.wordpressUrl) && project.articles.some(a => a.status === 'completed' && a.content) && (
+            <Card className="border-blue-500/20 bg-blue-500/5">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-5 h-5 text-blue-500" />
+                    <CardTitle className="text-lg">Publish to WordPress</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllCompletedArticles}
+                    >
+                      Select All Completed
+                    </Button>
+                    <Button
+                      onClick={handlePublishToWordPress}
+                      disabled={isPublishingToWordPress || selectedArticles.size === 0}
+                      className="gap-2"
+                    >
+                      {isPublishingToWordPress ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      Publish as Draft ({selectedArticles.size})
+                    </Button>
+                  </div>
+                </div>
+                <CardDescription>
+                  Select completed articles to save as drafts in WordPress
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+
           <div className="space-y-3">
             {project.articles.length === 0 ? (
               <Card className="border-dashed">
@@ -847,16 +1119,26 @@ export default function ProjectDetail() {
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="font-semibold mb-2">No articles yet</h3>
                   <p className="text-muted-foreground text-sm">
-                    Generate a strategy pack to automatically create article titles, or add them manually above.
+                    Generate market insights to automatically create article titles, or add them manually above.
                   </p>
                 </CardContent>
               </Card>
             ) : (
               project.articles.map((article) => (
-                <Card key={article.id} className="group hover:border-primary/30 transition-colors">
+                <Card key={article.id} className={cn(
+                  "group hover:border-primary/30 transition-colors",
+                  selectedArticles.has(article.id) && "border-blue-500/50 bg-blue-500/5"
+                )}>
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 min-w-0">
+                        {/* Selection checkbox for completed articles */}
+                        {article.status === 'completed' && article.content && (localProject.wordpressUrl || project.wordpressUrl) && (
+                          <Checkbox
+                            checked={selectedArticles.has(article.id)}
+                            onCheckedChange={() => toggleArticleSelection(article.id)}
+                          />
+                        )}
                         {generatingArticleId === article.id ? (
                           <Loader2 className="w-4 h-4 animate-spin text-primary" />
                         ) : (
@@ -1133,6 +1415,58 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* WordPress Integration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-primary" />
+                WordPress Integration
+              </CardTitle>
+              <CardDescription>
+                Configure WordPress REST API credentials to publish articles as drafts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="wordpressUrl">WordPress Site URL</Label>
+                <Input
+                  id="wordpressUrl"
+                  value={localProject.wordpressUrl || ''}
+                  onChange={(e) => handleLocalChange('wordpressUrl', e.target.value)}
+                  placeholder="https://your-site.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your WordPress site URL (e.g., https://example.com)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="wordpressUsername">Username</Label>
+                  <Input
+                    id="wordpressUsername"
+                    value={localProject.wordpressUsername || ''}
+                    onChange={(e) => handleLocalChange('wordpressUsername', e.target.value)}
+                    placeholder="WordPress username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="wordpressPassword">Application Password</Label>
+                  <Input
+                    id="wordpressPassword"
+                    type="password"
+                    value={localProject.wordpressPassword || ''}
+                    onChange={(e) => handleLocalChange('wordpressPassword', e.target.value)}
+                    placeholder="WordPress application password"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Generate an application password in WordPress: Users → Profile → Application Passwords
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Reference Context */}
           <ReferenceFileUpload
