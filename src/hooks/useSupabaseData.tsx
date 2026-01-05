@@ -112,6 +112,14 @@ export function useSupabaseData() {
       persona: p.persona || undefined,
       painPoints: p.pain_points || undefined,
       valueProposition: p.value_proposition || undefined,
+      // New fields
+      keywords: (p as Record<string, unknown>).keywords as string[] || [],
+      businessName: (p as Record<string, unknown>).business_name as string || undefined,
+      businessAddress: (p as Record<string, unknown>).business_address as string || undefined,
+      businessPhone: (p as Record<string, unknown>).business_phone as string || undefined,
+      businessEmail: (p as Record<string, unknown>).business_email as string || undefined,
+      referenceText: (p as Record<string, unknown>).reference_text as string || undefined,
+      referenceFileUrl: (p as Record<string, unknown>).reference_file_url as string || undefined,
       strategyPack: p.strategy_pack ? (p.strategy_pack as unknown as StrategyPack) : undefined,
       articles: articlesMap.get(p.id) || [],
       createdAt: new Date(p.created_at),
@@ -211,6 +219,14 @@ export function useSupabaseData() {
     if (updates.painPoints !== undefined) dbUpdates.pain_points = updates.painPoints;
     if (updates.valueProposition !== undefined) dbUpdates.value_proposition = updates.valueProposition;
     if (updates.strategyPack !== undefined) dbUpdates.strategy_pack = updates.strategyPack;
+    // New fields
+    if (updates.keywords !== undefined) dbUpdates.keywords = updates.keywords;
+    if (updates.businessName !== undefined) dbUpdates.business_name = updates.businessName;
+    if (updates.businessAddress !== undefined) dbUpdates.business_address = updates.businessAddress;
+    if (updates.businessPhone !== undefined) dbUpdates.business_phone = updates.businessPhone;
+    if (updates.businessEmail !== undefined) dbUpdates.business_email = updates.businessEmail;
+    if (updates.referenceText !== undefined) dbUpdates.reference_text = updates.referenceText;
+    if (updates.referenceFileUrl !== undefined) dbUpdates.reference_file_url = updates.referenceFileUrl;
 
     const { error } = await supabase
       .from('projects')

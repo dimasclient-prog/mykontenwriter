@@ -40,6 +40,14 @@ export interface ProjectSettings {
   persona?: string;
   painPoints?: string[];
   valueProposition?: string;
+  // New fields
+  keywords?: string[];
+  businessName?: string;
+  businessAddress?: string;
+  businessPhone?: string;
+  businessEmail?: string;
+  referenceText?: string;
+  referenceFileUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
