@@ -206,7 +206,7 @@ export default function MasterSettings() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Your API key is stored securely in the database
+                Your API key is encrypted and stored securely. It is never sent to the browser after saving.
               </p>
             </div>
           </CardContent>

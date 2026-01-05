@@ -198,6 +198,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decrypt_api_key: { Args: { encrypted_key: string }; Returns: string }
+      encrypt_api_key: { Args: { plain_key: string }; Returns: string }
+      get_user_api_key: {
+        Args: { p_user_id: string }
+        Returns: {
+          ai_provider: string
+          api_key: string
+          default_model: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

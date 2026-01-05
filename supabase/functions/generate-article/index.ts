@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getUserCredentials } from "../_shared/get-user-credentials.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,9 +8,6 @@ const corsHeaders = {
 };
 
 interface ArticleRequest {
-  apiKey: string;
-  provider: 'openai' | 'gemini' | 'deepseek' | 'qwen';
-  model: string;
   articleTitle: string;
   projectData: {
     language: string;
@@ -216,7 +214,11 @@ serve(async (req) => {
   }
 
   try {
-    const { apiKey, provider, model, articleTitle, projectData } = await req.json() as ArticleRequest;
+    // Get user credentials from database (encrypted API key)
+    const authHeader = req.headers.get('Authorization');
+    const { apiKey, provider, model } = await getUserCredentials(authHeader);
+
+    const { articleTitle, projectData } = await req.json() as ArticleRequest;
 
     console.log(`Generating article "${articleTitle}" using ${provider}/${model}`);
 

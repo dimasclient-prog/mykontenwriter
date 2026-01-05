@@ -217,19 +217,11 @@ export default function ProjectDetail() {
   };
 
   const handleGenerateStrategy = async () => {
-    if (!masterSettings.apiKey) {
-      toast.error('Please configure your API key in Master Settings first');
-      return;
-    }
-
     setIsGeneratingStrategy(true);
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-strategy', {
         body: {
-          apiKey: masterSettings.apiKey,
-          provider: masterSettings.aiProvider,
-          model: masterSettings.defaultModel,
           projectData: {
             mode: project.mode,
             language: getProjectLanguage(),
@@ -246,7 +238,8 @@ export default function ProjectDetail() {
 
       if (error) {
         console.error('Strategy generation error:', error);
-        toast.error('Failed to generate strategy pack');
+        const errorMessage = error.message || 'Failed to generate strategy pack';
+        toast.error(errorMessage.includes('API key') ? errorMessage : 'Failed to generate strategy pack');
         return;
       }
 
@@ -265,11 +258,6 @@ export default function ProjectDetail() {
   };
 
   const handleGenerateArticle = async (articleId: string, articleTitle: string) => {
-    if (!masterSettings.apiKey) {
-      toast.error('Please configure your API key in Master Settings first');
-      return;
-    }
-
     setGeneratingArticleId(articleId);
     await updateArticle(project.id, articleId, { status: 'in-progress' });
 
@@ -279,9 +267,6 @@ export default function ProjectDetail() {
 
       const { data, error } = await supabase.functions.invoke('generate-article', {
         body: {
-          apiKey: masterSettings.apiKey,
-          provider: masterSettings.aiProvider,
-          model: masterSettings.defaultModel,
           articleTitle,
           projectData: {
             language: getProjectLanguage(),
@@ -305,7 +290,8 @@ export default function ProjectDetail() {
       if (error) {
         console.error('Article generation error:', error);
         await updateArticle(project.id, articleId, { status: 'todo' });
-        toast.error('Failed to generate article');
+        const errorMessage = error.message || 'Failed to generate article';
+        toast.error(errorMessage.includes('API key') ? errorMessage : 'Failed to generate article');
         return;
       }
 
@@ -336,11 +322,6 @@ export default function ProjectDetail() {
       return;
     }
 
-    if (!masterSettings.apiKey) {
-      toast.error('Please configure your API key in Master Settings first');
-      return;
-    }
-
     setIsBatchGenerating(true);
     let successCount = 0;
     let errorCount = 0;
@@ -355,9 +336,6 @@ export default function ProjectDetail() {
 
         const { data, error } = await supabase.functions.invoke('generate-article', {
           body: {
-            apiKey: masterSettings.apiKey,
-            provider: masterSettings.aiProvider,
-            model: masterSettings.defaultModel,
             articleTitle: article.title,
             projectData: {
               language: getProjectLanguage(),
@@ -406,11 +384,6 @@ export default function ProjectDetail() {
   };
 
   const handleGenerateTitles = async () => {
-    if (!masterSettings.apiKey) {
-      toast.error('Please configure your API key in Master Settings first');
-      return;
-    }
-
     if (titleCount < 1 || titleCount > 50) {
       toast.error('Please enter a number between 1 and 50');
       return;
@@ -423,9 +396,6 @@ export default function ProjectDetail() {
 
       const { data, error } = await supabase.functions.invoke('generate-titles', {
         body: {
-          apiKey: masterSettings.apiKey,
-          provider: masterSettings.aiProvider,
-          model: masterSettings.defaultModel,
           count: titleCount,
           existingTitles,
           projectData: {
@@ -443,7 +413,8 @@ export default function ProjectDetail() {
 
       if (error) {
         console.error('Title generation error:', error);
-        toast.error('Failed to generate article titles');
+        const errorMessage = error.message || 'Failed to generate article titles';
+        toast.error(errorMessage.includes('API key') ? errorMessage : 'Failed to generate article titles');
         return;
       }
 

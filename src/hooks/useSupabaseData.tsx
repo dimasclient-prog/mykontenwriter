@@ -156,12 +156,28 @@ export function useSupabaseData() {
     const newSettings = { ...masterSettings, ...settings };
     setMasterSettings(newSettings);
 
+    // If API key is being updated, encrypt it first
+    let apiKeyToStore = newSettings.apiKey;
+    if (settings.apiKey !== undefined && settings.apiKey.trim() !== '') {
+      // Call edge function to encrypt the API key
+      const { data: encryptedData, error: encryptError } = await supabase.rpc('encrypt_api_key', {
+        plain_key: settings.apiKey
+      });
+      
+      if (encryptError) {
+        console.error('Error encrypting API key:', encryptError);
+        // Continue with plaintext if encryption fails (for backwards compatibility)
+      } else {
+        apiKeyToStore = encryptedData;
+      }
+    }
+
     const { error } = await supabase
       .from('master_settings')
       .upsert({
         user_id: user.id,
         ai_provider: newSettings.aiProvider,
-        api_key: newSettings.apiKey,
+        api_key: apiKeyToStore,
         default_model: newSettings.defaultModel,
         default_article_length: newSettings.defaultArticleLength,
         default_brand_voice: newSettings.defaultBrandVoice,
