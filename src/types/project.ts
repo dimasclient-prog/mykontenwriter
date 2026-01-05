@@ -18,9 +18,12 @@ export const AI_PROVIDER_NAMES: Record<AIProvider, string> = {
   qwen: 'Qwen',
 };
 
+export type ProviderApiKeys = Record<AIProvider, string>;
+
 export interface MasterSettings {
   aiProvider: AIProvider;
-  apiKey: string;
+  apiKey: string; // Current provider's API key (for display)
+  providerApiKeys: ProviderApiKeys; // All provider API keys
   defaultModel: string;
   defaultArticleLength: number;
   defaultBrandVoice: string;
