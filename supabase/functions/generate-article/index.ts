@@ -20,6 +20,12 @@ interface ArticleRequest {
     product?: string;
     targetMarket?: string;
     valueProposition?: string;
+    keywords?: string[];
+    businessName?: string;
+    businessAddress?: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    websiteUrl?: string;
   };
 }
 
@@ -181,6 +187,29 @@ async function callQwen(apiKey: string, model: string, systemPrompt: string, use
   return data.choices[0].message.content;
 }
 
+// Build business contact info for CTA
+function buildBusinessContactInfo(projectData: ArticleRequest['projectData']): string {
+  const parts: string[] = [];
+  
+  if (projectData.businessName) {
+    parts.push(`<strong>${projectData.businessName}</strong>`);
+  }
+  if (projectData.businessAddress) {
+    parts.push(`📍 ${projectData.businessAddress}`);
+  }
+  if (projectData.businessPhone) {
+    parts.push(`📞 ${projectData.businessPhone}`);
+  }
+  if (projectData.businessEmail) {
+    parts.push(`✉️ ${projectData.businessEmail}`);
+  }
+  if (projectData.websiteUrl) {
+    parts.push(`🌐 ${projectData.websiteUrl}`);
+  }
+  
+  return parts.join('<br/>');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -196,25 +225,44 @@ serve(async (req) => {
     // Increase target word count by 20%
     const adjustedWordCount = Math.round(projectData.targetWordCount * 1.2);
 
-    // Build business context for soft CTA
-    const businessDetails = {
-      product: projectData.product || '',
-      targetMarket: projectData.targetMarket || '',
-      persona: projectData.persona || '',
-      valueProposition: projectData.valueProposition || '',
-    };
+    // Build keywords instruction if available
+    const keywordsInstruction = projectData.keywords && projectData.keywords.length > 0
+      ? `\nTARGET KEYWORDS (incorporate naturally throughout the article):
+${projectData.keywords.join(', ')}`
+      : '';
 
-    const hasBusinessDetails = businessDetails.product || businessDetails.valueProposition;
+    // Build business details for soft CTA
+    const hasBusinessDetails = projectData.businessName || projectData.product || projectData.valueProposition;
+    const businessContactInfo = buildBusinessContactInfo(projectData);
 
     const softCtaInstruction = hasBusinessDetails 
       ? `\nSOFT CTA SECTION (MANDATORY):
 - At the end of the article, before or after FAQ, include a soft call-to-action section
-- Use <h2> for the CTA heading
+- Use <h2> for the CTA heading (e.g., "Butuh Bantuan?" or "Ready to Get Started?" depending on language)
 - The CTA should be helpful and non-pushy, relating to the reader's needs
-- Reference the product/service naturally: "${businessDetails.product}"
-- Highlight the value proposition: "${businessDetails.valueProposition}"
-- Target audience context: "${businessDetails.targetMarket || businessDetails.persona}"
-- Example tone: "If you're looking for [solution to pain point], [product] might be worth exploring..."
+${projectData.businessName ? `- Business Name: "${projectData.businessName}"` : ''}
+${projectData.product ? `- Product/Service: "${projectData.product}"` : ''}
+${projectData.valueProposition ? `- Value Proposition: "${projectData.valueProposition}"` : ''}
+${projectData.targetMarket || projectData.persona ? `- Target audience: "${projectData.targetMarket || projectData.persona}"` : ''}
+
+BUSINESS CONTACT DETAILS TO INCLUDE IN CTA:
+${projectData.businessName ? `- Business Name: ${projectData.businessName}` : ''}
+${projectData.businessAddress ? `- Address: ${projectData.businessAddress}` : ''}
+${projectData.businessPhone ? `- Phone: ${projectData.businessPhone}` : ''}
+${projectData.businessEmail ? `- Email: ${projectData.businessEmail}` : ''}
+${projectData.websiteUrl ? `- Website: ${projectData.websiteUrl}` : ''}
+
+CTA FORMAT:
+- Write a warm, helpful closing paragraph that naturally mentions the business
+- Include the contact information in a clean, readable format
+- Example structure:
+  <h2>Butuh Bantuan Lebih Lanjut?</h2>
+  <p>If you need assistance with [topic], [Business Name] is here to help...</p>
+  <p><strong>[Business Name]</strong><br/>
+  📍 [Address]<br/>
+  📞 [Phone]<br/>
+  ✉️ [Email]<br/>
+  🌐 [Website]</p>
 - Keep it educational and helpful, not salesy`
       : '';
 
@@ -224,6 +272,7 @@ Your task is to write a comprehensive, SEO-optimized article.
 CRITICAL: ALL OUTPUT MUST BE IN ${languageInstruction.toUpperCase()} LANGUAGE. DO NOT MIX LANGUAGES.
 
 BRAND VOICE: ${projectData.brandVoice}
+${keywordsInstruction}
 
 OUTPUT FORMAT (MANDATORY):
 - Output MUST be valid HTML only
@@ -246,7 +295,7 @@ CONTENT RULES:
 - Focus on user pain points and solutions
 - Educational and non-salesy tone
 - Soft promotion only - NO hard CTA except in designated soft CTA section
-- Natural keyword usage
+- Natural keyword usage throughout the article
 - Search-intent optimized headings
 - Concise FAQ answers suitable for featured snippets
 - Write in-depth paragraphs with detailed explanations
@@ -265,6 +314,7 @@ Context:
 - Target Market: ${projectData.targetMarket || 'Not specified'}
 - Product/Service: ${projectData.product || 'Not specified'}
 - Value Proposition: ${projectData.valueProposition || 'Not specified'}
+${projectData.keywords && projectData.keywords.length > 0 ? `- Target Keywords: ${projectData.keywords.join(', ')}` : ''}
 ${painPointsText}
 
 IMPORTANT: 
@@ -273,7 +323,8 @@ IMPORTANT:
 - Cover the topic thoroughly with multiple subsections
 - Output valid HTML only with the structure specified
 - Write entirely in ${languageInstruction}
-${hasBusinessDetails ? '- Include a soft, helpful CTA section that naturally mentions the product/service' : ''}`;
+${projectData.keywords && projectData.keywords.length > 0 ? '- Naturally incorporate the target keywords throughout the article' : ''}
+${hasBusinessDetails ? '- Include a soft, helpful CTA section with business contact details at the end' : ''}`;
 
     let result: string;
     switch (provider) {

@@ -18,6 +18,8 @@ interface StrategyRequest {
     targetMarket?: string;
     persona?: string;
     valueProposition?: string;
+    keywords?: string[];
+    businessContext?: string;
   };
 }
 
@@ -195,6 +197,18 @@ serve(async (req) => {
       ? projectData.language 
       : projectData.language.charAt(0).toUpperCase() + projectData.language.slice(1);
 
+    // Build keywords instruction if available
+    const keywordsInstruction = projectData.keywords && projectData.keywords.length > 0
+      ? `\nPRIMARY KEYWORDS (MANDATORY TO USE):
+These keywords MUST be incorporated as the main topics for article titles and topic clusters:
+${projectData.keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
+
+IMPORTANT: 
+- Each article title should target one or more of these keywords
+- Topic clusters should be organized around these keywords
+- Pain points should relate to these keyword topics`
+      : '';
+
     const systemPrompt = `You are an expert SEO strategist and content marketing specialist. 
 Your task is to generate a comprehensive SEO Strategy Pack based on business information.
 ALL OUTPUT MUST BE IN ${languageInstruction.toUpperCase()} LANGUAGE. DO NOT MIX LANGUAGES.
@@ -213,20 +227,25 @@ Requirements:
 - Generate exactly 5 topic clusters
 - Generate exactly 10 SEO-friendly article titles
 - All content must be educational and TOFU (Top of Funnel) focused
-- Titles must be search-intent optimized`;
+- Titles must be search-intent optimized
+${keywordsInstruction}`;
 
     let userPrompt: string;
     if (projectData.mode === 'auto') {
       userPrompt = `Analyze this website and generate a strategy pack:
 Website URL: ${projectData.websiteUrl || 'Not provided'}
+${projectData.keywords && projectData.keywords.length > 0 ? `\nTarget Keywords: ${projectData.keywords.join(', ')}` : ''}
+${projectData.businessContext ? `\nBusiness Context: ${projectData.businessContext}` : ''}
 
-Based on what you can infer about this business from the URL, create a comprehensive SEO strategy.`;
+Based on what you can infer about this business from the URL and keywords, create a comprehensive SEO strategy.`;
     } else {
       userPrompt = `Generate a strategy pack for this business:
 Product/Service: ${projectData.product || 'Not specified'}
 Target Market: ${projectData.targetMarket || 'Not specified'}
 Persona: ${projectData.persona || 'Not specified'}
-Value Proposition: ${projectData.valueProposition || 'Not specified'}`;
+Value Proposition: ${projectData.valueProposition || 'Not specified'}
+${projectData.keywords && projectData.keywords.length > 0 ? `\nTarget Keywords (MUST be used as main topics): ${projectData.keywords.join(', ')}` : ''}
+${projectData.businessContext ? `\nBusiness Context: ${projectData.businessContext}` : ''}`;
     }
 
     let result: string;
