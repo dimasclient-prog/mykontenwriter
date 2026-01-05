@@ -103,6 +103,47 @@ export type Database = {
         }
         Relationships: []
       }
+      project_shares: {
+        Row: {
+          created_at: string
+          id: string
+          invited_by: string
+          project_id: string
+          role: Database["public"]["Enums"]["share_role"]
+          shared_with_email: string
+          shared_with_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_by: string
+          project_id: string
+          role?: Database["public"]["Enums"]["share_role"]
+          shared_with_email: string
+          shared_with_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string
+          project_id?: string
+          role?: Database["public"]["Enums"]["share_role"]
+          shared_with_email?: string
+          shared_with_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_shares_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           brand_voice: string | null
@@ -243,6 +284,7 @@ export type Database = {
       article_status: "todo" | "in-progress" | "completed"
       project_language: "indonesian" | "english" | "other"
       project_mode: "auto" | "advanced"
+      share_role: "viewer" | "editor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -375,6 +417,7 @@ export const Constants = {
       article_status: ["todo", "in-progress", "completed"],
       project_language: ["indonesian", "english", "other"],
       project_mode: ["auto", "advanced"],
+      share_role: ["viewer", "editor"],
     },
   },
 } as const

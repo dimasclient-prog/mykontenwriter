@@ -25,7 +25,8 @@ import {
   Target,
   Users,
   TrendingUp,
-  Layers
+  Layers,
+  Share2
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -46,6 +47,9 @@ import { ArticleEditor } from '@/components/ArticleEditor';
 import { KeywordsManager } from '@/components/KeywordsManager';
 import { ReferenceFileUpload } from '@/components/ReferenceFileUpload';
 import { TitleGeneratorModal, ArticleType, FunnelType } from '@/components/TitleGeneratorModal';
+import { ProjectShareModal } from '@/components/ProjectShareModal';
+import { WordPressConnector } from '@/components/WordPressConnector';
+import { ArticleFilter, ArticleFilterType } from '@/components/ArticleFilter';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -84,6 +88,12 @@ export default function ProjectDetail() {
   
   // WordPress publishing state
   const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
+  
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  
+  // Article filter state
+  const [articleFilter, setArticleFilter] = useState<ArticleFilterType>('all');
   const [isPublishingToWordPress, setIsPublishingToWordPress] = useState(false);
 
   // Initialize local state when project changes
@@ -618,6 +628,10 @@ export default function ProjectDetail() {
                 Unsaved Changes
               </Badge>
             )}
+            <Button variant="outline" onClick={() => setShowShareModal(true)} className="gap-2">
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
             <Button onClick={handleSaveProject} disabled={!isDirty} className="gap-2">
               <Save className="w-4 h-4" />
               Save Project
@@ -1063,11 +1077,22 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
+          {/* Article Filter */}
+          <ArticleFilter
+            value={articleFilter}
+            onChange={setArticleFilter}
+            counts={{
+              all: project.articles.length,
+              generated: project.articles.filter(a => a.status === 'completed').length,
+              ideas: project.articles.filter(a => a.status === 'todo').length,
+            }}
+          />
+
           {/* WordPress Publish Section */}
           {(localProject.wordpressUrl || project.wordpressUrl) && project.articles.some(a => a.status === 'completed' && a.content) && (
             <Card className="border-blue-500/20 bg-blue-500/5">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Send className="w-5 h-5 text-blue-500" />
                     <CardTitle className="text-lg">Publish to WordPress</CardTitle>
@@ -1078,7 +1103,7 @@ export default function ProjectDetail() {
                       size="sm"
                       onClick={selectAllCompletedArticles}
                     >
-                      Select All Completed
+                      Select All Generated
                     </Button>
                     <Button
                       onClick={handlePublishToWordPress}
@@ -1090,12 +1115,12 @@ export default function ProjectDetail() {
                       ) : (
                         <Send className="w-4 h-4" />
                       )}
-                      Publish as Draft ({selectedArticles.size})
+                      Draft to WP ({selectedArticles.size})
                     </Button>
                   </div>
                 </div>
                 <CardDescription>
-                  Select completed articles to save as drafts in WordPress
+                  Select generated articles to save as drafts in WordPress
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -1113,7 +1138,13 @@ export default function ProjectDetail() {
                 </CardContent>
               </Card>
             ) : (
-              project.articles.map((article) => (
+              project.articles
+                .filter(article => {
+                  if (articleFilter === 'generated') return article.status === 'completed';
+                  if (articleFilter === 'ideas') return article.status === 'todo';
+                  return true;
+                })
+                .map((article) => (
                 <Card key={article.id} className={cn(
                   "group hover:border-primary/30 transition-colors",
                   selectedArticles.has(article.id) && "border-blue-500/50 bg-blue-500/5"
@@ -1412,56 +1443,14 @@ export default function ProjectDetail() {
           )}
 
           {/* WordPress Integration */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="w-5 h-5 text-primary" />
-                WordPress Integration
-              </CardTitle>
-              <CardDescription>
-                Configure WordPress REST API credentials to publish articles as drafts
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="wordpressUrl">WordPress Site URL</Label>
-                <Input
-                  id="wordpressUrl"
-                  value={localProject.wordpressUrl || ''}
-                  onChange={(e) => handleLocalChange('wordpressUrl', e.target.value)}
-                  placeholder="https://your-site.com"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Your WordPress site URL (e.g., https://example.com)
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="wordpressUsername">Username</Label>
-                  <Input
-                    id="wordpressUsername"
-                    value={localProject.wordpressUsername || ''}
-                    onChange={(e) => handleLocalChange('wordpressUsername', e.target.value)}
-                    placeholder="WordPress username"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wordpressPassword">Application Password</Label>
-                  <Input
-                    id="wordpressPassword"
-                    type="password"
-                    value={localProject.wordpressPassword || ''}
-                    onChange={(e) => handleLocalChange('wordpressPassword', e.target.value)}
-                    placeholder="WordPress application password"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Generate an application password in WordPress: Users → Profile → Application Passwords
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <WordPressConnector
+            wordpressUrl={localProject.wordpressUrl || ''}
+            wordpressUsername={localProject.wordpressUsername || ''}
+            wordpressPassword={localProject.wordpressPassword || ''}
+            onUrlChange={(url) => handleLocalChange('wordpressUrl', url)}
+            onUsernameChange={(username) => handleLocalChange('wordpressUsername', username)}
+            onPasswordChange={(password) => handleLocalChange('wordpressPassword', password)}
+          />
 
           {/* Reference Context */}
           <ReferenceFileUpload
@@ -1481,6 +1470,17 @@ export default function ProjectDetail() {
           open={!!editingArticle}
           onClose={() => setEditingArticle(null)}
           onSave={handleSaveArticleContent}
+          wordpressConfig={
+            (localProject.wordpressUrl || project.wordpressUrl) &&
+            (localProject.wordpressUsername || project.wordpressUsername) &&
+            (localProject.wordpressPassword || project.wordpressPassword)
+              ? {
+                  url: localProject.wordpressUrl || project.wordpressUrl || '',
+                  username: localProject.wordpressUsername || project.wordpressUsername || '',
+                  password: localProject.wordpressPassword || project.wordpressPassword || '',
+                }
+              : null
+          }
         />
       )}
 
@@ -1490,6 +1490,14 @@ export default function ProjectDetail() {
         onOpenChange={setShowTitleGeneratorModal}
         onGenerate={handleGenerateTitles}
         isGenerating={isGeneratingTitles}
+      />
+
+      {/* Project Share Modal */}
+      <ProjectShareModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        projectId={project.id}
+        projectName={project.name}
       />
     </div>
   );

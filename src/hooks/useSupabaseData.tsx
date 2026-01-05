@@ -73,22 +73,55 @@ export function useSupabaseData() {
     }
   }, [user]);
 
-  // Fetch projects with articles
+  // Fetch projects with articles (including shared projects)
   const fetchProjects = useCallback(async () => {
     if (!user) return;
 
-    const { data: projectsData, error: projectsError } = await supabase
+    // Fetch own projects
+    const { data: ownProjectsData, error: ownProjectsError } = await supabase
       .from('projects')
       .select('*')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 
-    if (projectsError) {
-      console.error('Error fetching projects:', projectsError);
+    if (ownProjectsError) {
+      console.error('Error fetching own projects:', ownProjectsError);
       return;
     }
 
-    if (!projectsData) {
+    // Fetch shared projects via project_shares table
+    const { data: sharedProjectsData, error: sharedProjectsError } = await supabase
+      .from('project_shares')
+      .select('project_id, role')
+      .or(`shared_with_user_id.eq.${user.id},shared_with_email.eq.${user.email}`);
+
+    let sharedProjects: any[] = [];
+    if (!sharedProjectsError && sharedProjectsData && sharedProjectsData.length > 0) {
+      const sharedProjectIds = sharedProjectsData.map(s => s.project_id);
+      const { data: projectsFromShares, error: projectsFromSharesError } = await supabase
+        .from('projects')
+        .select('*')
+        .in('id', sharedProjectIds)
+        .order('updated_at', { ascending: false });
+
+      if (!projectsFromSharesError && projectsFromShares) {
+        // Add share role info to projects
+        sharedProjects = projectsFromShares.map(p => ({
+          ...p,
+          _shareRole: sharedProjectsData.find(s => s.project_id === p.id)?.role || 'viewer',
+          _isShared: true,
+        }));
+      }
+    }
+
+    // Combine own projects and shared projects (avoiding duplicates)
+    const ownProjectIds = new Set((ownProjectsData || []).map(p => p.id));
+    const allProjectsData = [
+      ...(ownProjectsData || []).map(p => ({ ...p, _isShared: false, _shareRole: null })),
+      ...sharedProjects.filter(p => !ownProjectIds.has(p.id)),
+    ];
+
+    if (allProjectsData.length === 0) {
       setProjects([]);
       return;
     }
@@ -97,7 +130,7 @@ export function useSupabaseData() {
     const { data: articlesData, error: articlesError } = await supabase
       .from('articles')
       .select('*')
-      .in('project_id', projectsData.map(p => p.id))
+      .in('project_id', allProjectsData.map(p => p.id))
       .order('created_at', { ascending: true });
 
     if (articlesError) {
@@ -119,7 +152,7 @@ export function useSupabaseData() {
       articlesMap.set(article.project_id, projectArticles);
     });
 
-    const mappedProjects: Project[] = projectsData.map(p => ({
+    const mappedProjects: Project[] = allProjectsData.map(p => ({
       id: p.id,
       name: p.name,
       mode: p.mode as ProjectMode,
