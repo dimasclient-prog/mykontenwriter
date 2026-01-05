@@ -1,13 +1,20 @@
-import { useState } from 'react';
-import { X, Eye, Code, Save, Send, Loader2, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Eye, Code, Save, Send, Loader2, ExternalLink, AlertCircle, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Heading1, Heading2, Heading3, Link as LinkIcon, Undo, Redo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Toggle } from '@/components/ui/toggle';
+import { Separator } from '@/components/ui/separator';
 import { Article } from '@/types/project';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import UnderlineExtension from '@tiptap/extension-underline';
+import LinkExtension from '@tiptap/extension-link';
 
 interface ArticleEditorProps {
   article: Article;
@@ -21,11 +28,65 @@ interface ArticleEditorProps {
   } | null;
 }
 
+type PublishStatus = 'idle' | 'publishing' | 'success' | 'error';
+
 export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig }: ArticleEditorProps) {
   const [content, setContent] = useState(article.content || '');
   const [isDirty, setIsDirty] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>('idle');
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('visual');
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3],
+        },
+      }),
+      UnderlineExtension,
+      LinkExtension.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-primary underline',
+        },
+      }),
+    ],
+    content: content,
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      setContent(html);
+      setIsDirty(html !== article.content);
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm sm:prose max-w-none focus:outline-none min-h-[400px] p-4',
+      },
+    },
+  });
+
+  // Sync content when switching tabs
+  useEffect(() => {
+    if (editor && activeTab === 'visual') {
+      const currentContent = editor.getHTML();
+      if (currentContent !== content) {
+        editor.commands.setContent(content, { emitUpdate: false });
+      }
+    }
+  }, [activeTab, content, editor]);
+
+  // Reset state when article changes
+  useEffect(() => {
+    setContent(article.content || '');
+    setIsDirty(false);
+    setPublishStatus('idle');
+    setPublishError(null);
+    setPublishedUrl(null);
+    if (editor) {
+      editor.commands.setContent(article.content || '', { emitUpdate: false });
+    }
+  }, [article.id, article.content, editor]);
 
   const handleContentChange = (value: string) => {
     setContent(value);
@@ -33,22 +94,32 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
   };
 
   const handleSave = () => {
-    onSave(content);
+    // Sync from editor if in visual mode
+    if (editor && activeTab === 'visual') {
+      const html = editor.getHTML();
+      onSave(html);
+    } else {
+      onSave(content);
+    }
     setIsDirty(false);
   };
 
   const handlePublishToWordPress = async () => {
     if (!wordpressConfig) {
-      toast.error('WordPress not configured. Please set up WordPress in Project Settings.');
+      setPublishStatus('error');
+      setPublishError('WordPress belum dikonfigurasi. Silakan atur WordPress di Project Settings.');
       return;
     }
 
     if (!content) {
-      toast.error('No content to publish');
+      setPublishStatus('error');
+      setPublishError('Tidak ada konten untuk dipublish');
       return;
     }
 
-    setIsPublishing(true);
+    setPublishStatus('publishing');
+    setPublishError(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke('publish-to-wordpress', {
         body: {
@@ -56,30 +127,47 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
           username: wordpressConfig.username,
           password: wordpressConfig.password,
           title: article.title,
-          content: content,
+          content: activeTab === 'visual' && editor ? editor.getHTML() : content,
           status: 'draft',
         },
       });
 
       if (error) {
         console.error('WordPress publish error:', error);
-        toast.error(`Failed to publish: ${error.message}`);
+        setPublishStatus('error');
+        setPublishError(`Gagal mengirim: ${error.message}. Cek kembali pengaturan WordPress di Settings.`);
         return;
       }
 
       if (data?.success) {
         setPublishedUrl(data.postUrl);
-        toast.success('Article published as draft to WordPress!');
+        setPublishStatus('success');
+        toast.success('Artikel berhasil dikirim sebagai draft ke WordPress!');
       } else if (data?.error) {
-        toast.error(`WordPress error: ${data.error}`);
+        setPublishStatus('error');
+        setPublishError(`WordPress error: ${data.error}. Pastikan URL, Username, dan Application Password sudah benar di Settings.`);
       }
     } catch (err: any) {
       console.error('WordPress publish error:', err);
-      toast.error('Failed to publish to WordPress');
-    } finally {
-      setIsPublishing(false);
+      setPublishStatus('error');
+      setPublishError('Gagal mengirim ke WordPress. Cek koneksi internet dan pengaturan WordPress di Settings.');
     }
   };
+
+  const setLink = useCallback(() => {
+    if (!editor) return;
+    const previousUrl = editor.getAttributes('link').href;
+    const url = window.prompt('URL', previousUrl);
+
+    if (url === null) return;
+
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }, [editor]);
 
   const wordCount = content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
 
@@ -96,7 +184,7 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
                   Unsaved
                 </Badge>
               )}
-              {publishedUrl && (
+              {publishStatus === 'success' && publishedUrl && (
                 <a href={publishedUrl} target="_blank" rel="noopener noreferrer">
                   <Badge className="bg-success/20 text-success border-success/30 gap-1 cursor-pointer hover:bg-success/30">
                     <ExternalLink className="w-3 h-3" />
@@ -108,74 +196,174 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
                 <Save className="w-4 h-4" />
                 Save
               </Button>
-              {wordpressConfig && (
-                <Button 
-                  onClick={handlePublishToWordPress} 
-                  disabled={isPublishing || !content}
-                  size="sm" 
-                  variant="outline"
-                  className="gap-2"
-                >
-                  {isPublishing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  Draft to WP
-                </Button>
-              )}
+              <Button 
+                onClick={handlePublishToWordPress} 
+                disabled={publishStatus === 'publishing' || !content}
+                size="sm" 
+                variant="outline"
+                className="gap-2"
+              >
+                {publishStatus === 'publishing' ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Draft to WP
+              </Button>
             </div>
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="preview" className="flex-1 flex flex-col min-h-0">
+        {/* Publish Status Feedback */}
+        {publishStatus === 'success' && (
+          <Alert className="bg-success/10 border-success/30 text-success">
+            <CheckCircle2 className="h-4 w-4" />
+            <AlertDescription>
+              Artikel berhasil dikirim sebagai draft ke WordPress!{' '}
+              {publishedUrl && (
+                <a href={publishedUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                  Lihat artikel →
+                </a>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {publishStatus === 'error' && publishError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{publishError}</AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <TabsList className="w-fit">
-            <TabsTrigger value="preview" className="gap-2">
+            <TabsTrigger value="visual" className="gap-2">
               <Eye className="w-4 h-4" />
-              Preview
+              Visual Editor
             </TabsTrigger>
-            <TabsTrigger value="edit" className="gap-2">
+            <TabsTrigger value="html" className="gap-2">
               <Code className="w-4 h-4" />
               Edit HTML
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="preview" className="flex-1 overflow-auto mt-4">
-            <div className="border rounded-lg bg-background min-h-full overflow-hidden">
-              <iframe
-                srcDoc={`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      line-height: 1.7;
-      padding: 24px;
-      margin: 0;
-      color: #1a1a1a;
-      background: #fff;
-    }
-    h1 { font-size: 2em; font-weight: 700; margin: 0 0 1em; line-height: 1.2; }
-    h2 { font-size: 1.5em; font-weight: 600; margin: 1.5em 0 0.75em; line-height: 1.3; }
-    h3 { font-size: 1.25em; font-weight: 600; margin: 1.25em 0 0.5em; line-height: 1.4; }
-    p { margin: 0 0 1em; }
-    ul, ol { margin: 0 0 1em; padding-left: 1.5em; }
-    li { margin: 0.25em 0; }
-    strong { font-weight: 600; }
-    em { font-style: italic; }
-  </style>
-</head>
-<body>${content}</body>
-</html>`}
-                className="w-full h-full min-h-[500px] border-0"
-                title="Article Preview"
-                sandbox="allow-same-origin"
-              />
+          <TabsContent value="visual" className="flex-1 overflow-hidden mt-4 flex flex-col">
+            {/* Toolbar */}
+            {editor && (
+              <div className="flex flex-wrap items-center gap-1 p-2 border rounded-t-lg bg-muted/50">
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('bold')}
+                  onPressedChange={() => editor.chain().focus().toggleBold().run()}
+                  aria-label="Bold"
+                >
+                  <Bold className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('italic')}
+                  onPressedChange={() => editor.chain().focus().toggleItalic().run()}
+                  aria-label="Italic"
+                >
+                  <Italic className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('underline')}
+                  onPressedChange={() => editor.chain().focus().toggleUnderline().run()}
+                  aria-label="Underline"
+                >
+                  <Underline className="h-4 w-4" />
+                </Toggle>
+                
+                <Separator orientation="vertical" className="mx-1 h-6" />
+                
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('heading', { level: 1 })}
+                  onPressedChange={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                  aria-label="Heading 1"
+                >
+                  <Heading1 className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('heading', { level: 2 })}
+                  onPressedChange={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                  aria-label="Heading 2"
+                >
+                  <Heading2 className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('heading', { level: 3 })}
+                  onPressedChange={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                  aria-label="Heading 3"
+                >
+                  <Heading3 className="h-4 w-4" />
+                </Toggle>
+                
+                <Separator orientation="vertical" className="mx-1 h-6" />
+                
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('bulletList')}
+                  onPressedChange={() => editor.chain().focus().toggleBulletList().run()}
+                  aria-label="Bullet List"
+                >
+                  <List className="h-4 w-4" />
+                </Toggle>
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('orderedList')}
+                  onPressedChange={() => editor.chain().focus().toggleOrderedList().run()}
+                  aria-label="Ordered List"
+                >
+                  <ListOrdered className="h-4 w-4" />
+                </Toggle>
+                
+                <Separator orientation="vertical" className="mx-1 h-6" />
+                
+                <Toggle
+                  size="sm"
+                  pressed={editor.isActive('link')}
+                  onPressedChange={setLink}
+                  aria-label="Link"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                </Toggle>
+                
+                <Separator orientation="vertical" className="mx-1 h-6" />
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => editor.chain().focus().undo().run()}
+                  disabled={!editor.can().undo()}
+                  className="h-8 w-8 p-0"
+                >
+                  <Undo className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => editor.chain().focus().redo().run()}
+                  disabled={!editor.can().redo()}
+                  className="h-8 w-8 p-0"
+                >
+                  <Redo className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            
+            {/* Editor Content */}
+            <div className="flex-1 overflow-auto border border-t-0 rounded-b-lg bg-background">
+              <EditorContent editor={editor} className="min-h-[400px]" />
             </div>
           </TabsContent>
 
-          <TabsContent value="edit" className="flex-1 min-h-0 mt-4">
+          <TabsContent value="html" className="flex-1 min-h-0 mt-4">
             <Textarea
               value={content}
               onChange={(e) => handleContentChange(e.target.value)}
