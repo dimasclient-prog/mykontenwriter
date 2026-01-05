@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import leaftechLogo from '@/assets/leaftech-logo.png';
 
 const authSchema = z.object({
   email: z.string().trim().email('Invalid email address').max(255, 'Email too long'),
@@ -98,11 +99,8 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="text-center">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mx-auto mb-4">
-            <Mail className="w-6 h-6 text-primary" />
-          </div>
+          <img src={leaftechLogo} alt="Leaftech Digital" className="h-12 mx-auto mb-4" />
           <CardTitle className="text-2xl">MyKontenWriter Beta Version</CardTitle>
-          <p className="text-sm text-muted-foreground">by Leaftech Digital</p>
           <CardDescription>Sign in or create an account to continue</CardDescription>
         </CardHeader>
         <CardContent>
