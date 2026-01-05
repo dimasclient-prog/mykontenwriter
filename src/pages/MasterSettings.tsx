@@ -158,7 +158,7 @@ export default function MasterSettings() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto animate-fade-in">
       <PageHeader
         title="Master Settings"
         description="Configure global settings that apply to all projects"
@@ -185,7 +185,7 @@ export default function MasterSettings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="space-y-2">
                 <Label htmlFor="aiProvider">AI Provider</Label>
                 <Select

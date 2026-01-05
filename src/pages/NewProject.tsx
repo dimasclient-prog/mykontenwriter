@@ -58,7 +58,7 @@ export default function NewProject() {
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto animate-fade-in">
+    <div className="p-4 md:p-8 max-w-2xl mx-auto animate-fade-in">
       <Button
         variant="ghost"
         className="mb-6 gap-2 text-muted-foreground"

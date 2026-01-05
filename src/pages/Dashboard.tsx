@@ -39,7 +39,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto animate-fade-in">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto animate-fade-in">
       <PageHeader
         title="Dashboard"
         description="Manage your SEO content projects"
