@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getUserCredentials } from "../_shared/get-user-credentials.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,9 +8,6 @@ const corsHeaders = {
 };
 
 interface StrategyRequest {
-  apiKey: string;
-  provider: 'openai' | 'gemini' | 'deepseek' | 'qwen';
-  model: string;
   projectData: {
     mode: 'auto' | 'manual';
     language: string;
@@ -189,7 +187,11 @@ serve(async (req) => {
   }
 
   try {
-    const { apiKey, provider, model, projectData } = await req.json() as StrategyRequest;
+    // Get user credentials from database (encrypted API key)
+    const authHeader = req.headers.get('Authorization');
+    const { apiKey, provider, model } = await getUserCredentials(authHeader);
+
+    const { projectData } = await req.json() as StrategyRequest;
 
     console.log(`Generating strategy pack using ${provider}/${model}`);
 
