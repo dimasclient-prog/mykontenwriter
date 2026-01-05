@@ -45,6 +45,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ArticleEditor } from '@/components/ArticleEditor';
 import { KeywordsManager } from '@/components/KeywordsManager';
 import { ReferenceFileUpload } from '@/components/ReferenceFileUpload';
+import { TitleGeneratorModal, ArticleType, FunnelType } from '@/components/TitleGeneratorModal';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -76,7 +77,7 @@ export default function ProjectDetail() {
   const [generatingArticleId, setGeneratingArticleId] = useState<string | null>(null);
   const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [isGeneratingTitles, setIsGeneratingTitles] = useState(false);
-  const [titleCount, setTitleCount] = useState(5);
+  const [showTitleGeneratorModal, setShowTitleGeneratorModal] = useState(false);
   
   // Article editor state
   const [editingArticle, setEditingArticle] = useState<Article | null>(null);
@@ -404,12 +405,11 @@ export default function ProjectDetail() {
     }
   };
 
-  const handleGenerateTitles = async () => {
-    if (titleCount < 1 || titleCount > 50) {
-      toast.error('Please enter a number between 1 and 50');
-      return;
-    }
-
+  const handleGenerateTitles = async (config: {
+    articleTypes: ArticleType[];
+    articleCount: number;
+    funnelType: FunnelType;
+  }) => {
     setIsGeneratingTitles(true);
 
     try {
@@ -417,8 +417,10 @@ export default function ProjectDetail() {
 
       const { data, error } = await supabase.functions.invoke('generate-titles', {
         body: {
-          count: titleCount,
+          count: config.articleCount,
           existingTitles,
+          articleTypes: config.articleTypes,
+          funnelType: config.funnelType,
           projectData: {
             language: getProjectLanguage(),
             keywords: project.keywords || [],
@@ -428,6 +430,8 @@ export default function ProjectDetail() {
             corePainPoints: project.strategyPack?.corePainPoints,
             product: project.product,
             targetMarket: project.targetMarket,
+            brandVoice: project.brandVoice || masterSettings.defaultBrandVoice,
+            businessContext: project.businessContext,
           },
         },
       });
@@ -445,6 +449,7 @@ export default function ProjectDetail() {
           await addArticle(project.id, title);
         }
         toast.success(`Generated ${data.titles.length} article titles!`);
+        setShowTitleGeneratorModal(false);
       } else if (data?.error) {
         toast.error(data.error);
       }
@@ -999,42 +1004,26 @@ export default function ProjectDetail() {
           {/* Generate Title Ideas Card */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-primary" />
-                <CardTitle className="text-lg">Generate Article Ideas</CardTitle>
-              </div>
-              <CardDescription>
-                Generate new article title ideas based on your keywords, topics, and reference context
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="titleCount" className="whitespace-nowrap">Number of titles:</Label>
-                  <Input
-                    id="titleCount"
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={titleCount}
-                    onChange={(e) => setTitleCount(parseInt(e.target.value) || 5)}
-                    className="w-20"
-                  />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="w-5 h-5 text-primary" />
+                    <CardTitle className="text-lg">Generate Article Ideas</CardTitle>
+                  </div>
+                  <CardDescription className="mt-1">
+                    Generate new article title ideas dengan memilih tipe artikel dan funnel type
+                  </CardDescription>
                 </div>
                 <Button
-                  onClick={handleGenerateTitles}
-                  disabled={isGeneratingTitles || isBatchGenerating}
-                  className="gap-2"
+                  onClick={() => setShowTitleGeneratorModal(true)}
+                  disabled={isBatchGenerating}
+                  className="gap-2 shrink-0"
                 >
-                  {isGeneratingTitles ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Lightbulb className="w-4 h-4" />
-                  )}
-                  {isGeneratingTitles ? 'Generating...' : 'Generate Ideas'}
+                  <Lightbulb className="w-4 h-4" />
+                  Generate Ideas
                 </Button>
               </div>
-            </CardContent>
+            </CardHeader>
           </Card>
 
           <Card>
@@ -1494,6 +1483,14 @@ export default function ProjectDetail() {
           onSave={handleSaveArticleContent}
         />
       )}
+
+      {/* Title Generator Modal */}
+      <TitleGeneratorModal
+        open={showTitleGeneratorModal}
+        onOpenChange={setShowTitleGeneratorModal}
+        onGenerate={handleGenerateTitles}
+        isGenerating={isGeneratingTitles}
+      />
     </div>
   );
 }
