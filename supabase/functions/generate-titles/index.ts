@@ -351,23 +351,52 @@ IMPORTANT REMINDERS:
         throw new Error(`Unknown provider: ${provider}`);
     }
 
-    console.log('Article titles generated successfully');
+    console.log('Raw AI response:', result);
 
-    // Parse the JSON response
-    let parsedResult;
+    // Parse the response - try JSON first, then fallback to line-based parsing
+    let titles: string[] = [];
     try {
       const jsonMatch = result.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedResult = JSON.parse(jsonMatch[0]);
+        const parsedResult = JSON.parse(jsonMatch[0]);
+        titles = parsedResult.titles || [];
       } else {
-        throw new Error('No JSON found in response');
+        throw new Error('No JSON found');
       }
     } catch (parseError) {
-      console.error('Failed to parse titles:', parseError);
-      throw new Error('Failed to parse AI response as JSON');
+      console.log('JSON parsing failed, trying line-based parsing');
+      // Fallback: parse as plain text list
+      const lines = result
+        .split('\n')
+        .map((line: string) => line.trim())
+        .filter((line: string) => line.length > 0)
+        // Remove common list prefixes like "1.", "- ", "* ", etc.
+        .map((line: string) => line.replace(/^[\d]+[\.\)\-\s]+/, '').replace(/^[\-\*\•]\s*/, '').trim())
+        // Filter out lines that look like instructions or metadata
+        .filter((line: string) => {
+          const lower = line.toLowerCase();
+          return !lower.startsWith('here are') && 
+                 !lower.startsWith('here\'s') &&
+                 !lower.includes('article title') &&
+                 !lower.includes('titles:') &&
+                 !lower.startsWith('{') &&
+                 !lower.startsWith('}') &&
+                 !lower.startsWith('"titles"') &&
+                 line.length > 10 && 
+                 line.length < 200;
+        });
+      
+      titles = lines.slice(0, count);
+      console.log('Parsed titles from plain text:', titles);
     }
 
-    return new Response(JSON.stringify({ titles: parsedResult.titles }), {
+    if (titles.length === 0) {
+      throw new Error('No titles could be extracted from AI response');
+    }
+
+    console.log(`Successfully extracted ${titles.length} titles`);
+
+    return new Response(JSON.stringify({ titles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
