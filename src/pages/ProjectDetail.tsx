@@ -1130,30 +1130,35 @@ export default function ProjectDetail() {
                   selectedArticles.has(article.id) && "border-blue-500/50 bg-blue-500/5"
                 )}>
                   <CardContent className="py-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="flex items-start md:items-center gap-3 min-w-0">
                         {/* Selection checkbox for completed articles */}
                         {article.status === 'completed' && article.content && (localProject.wordpressUrl || project.wordpressUrl) && (
                           <Checkbox
                             checked={selectedArticles.has(article.id)}
                             onCheckedChange={() => toggleArticleSelection(article.id)}
+                            className="mt-1 md:mt-0"
                           />
                         )}
-                        {generatingArticleId === article.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                        ) : (
-                          getStatusIcon(article.status)
-                        )}
-                        <span className="font-medium truncate">{article.title}</span>
-                        {article.wordCount && (
-                          <span className="text-xs text-muted-foreground">
-                            {article.wordCount} words
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {generatingArticleId === article.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                          ) : (
+                            getStatusIcon(article.status)
+                          )}
+                        </div>
+                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 min-w-0">
+                          <span className="font-medium break-words md:truncate">{article.title}</span>
+                          {article.wordCount && (
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {article.wordCount} words
+                            </span>
+                          )}
+                        </div>
                       </div>
-                        <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-7 md:ml-0">
                         {getStatusBadge(article.status)}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           {article.status === 'completed' && (
                             <Button
                               size="sm"
@@ -1161,7 +1166,8 @@ export default function ProjectDetail() {
                               onClick={() => setEditingArticle(article)}
                             >
                               <Eye className="w-3 h-3 mr-1" />
-                              View/Edit
+                              <span className="hidden sm:inline">View/Edit</span>
+                              <span className="sm:hidden">View</span>
                             </Button>
                           )}
                           {article.status === 'todo' && (
