@@ -101,7 +101,8 @@ export default function Auth() {
           <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mx-auto mb-4">
             <Mail className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">SEO Content Platform</CardTitle>
+          <CardTitle className="text-2xl">MyKontenWriter Beta Version</CardTitle>
+          <p className="text-sm text-muted-foreground">by Leaftech Digital</p>
           <CardDescription>Sign in or create an account to continue</CardDescription>
         </CardHeader>
         <CardContent>
