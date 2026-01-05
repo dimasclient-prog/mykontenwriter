@@ -40,10 +40,10 @@ serve(async (req) => {
     // Create service role client to access encrypted keys
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch master settings with all API keys
+    // Fetch master settings with all API keys including legacy
     const { data: settings, error: settingsError } = await supabaseAdmin
       .from('master_settings')
-      .select('openai_api_key, gemini_api_key, deepseek_api_key, qwen_api_key')
+      .select('openai_api_key, gemini_api_key, deepseek_api_key, qwen_api_key, api_key, ai_provider')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -63,6 +63,14 @@ serve(async (req) => {
       });
     }
 
+    // Check if we have provider-specific keys or need to fall back to legacy
+    const hasProviderKeys = settings.openai_api_key || settings.gemini_api_key || 
+                           settings.deepseek_api_key || settings.qwen_api_key;
+    
+    // If no provider-specific keys exist but legacy api_key exists, use it for current provider
+    const legacyKey = settings.api_key;
+    const currentProvider = settings.ai_provider as string;
+
     // Decrypt each API key using the database function
     const decryptKey = async (encryptedKey: string | null): Promise<string> => {
       if (!encryptedKey) return '';
@@ -79,6 +87,7 @@ serve(async (req) => {
       return data || '';
     };
 
+    // Decrypt provider-specific keys
     const [openaiKey, geminiKey, deepseekKey, qwenKey] = await Promise.all([
       decryptKey(settings.openai_api_key),
       decryptKey(settings.gemini_api_key),
@@ -86,12 +95,18 @@ serve(async (req) => {
       decryptKey(settings.qwen_api_key),
     ]);
 
-    return new Response(JSON.stringify({
-      openai: openaiKey,
-      gemini: geminiKey,
-      deepseek: deepseekKey,
-      qwen: qwenKey,
-    }), {
+    // Decrypt legacy key if it exists
+    const decryptedLegacyKey = legacyKey ? await decryptKey(legacyKey) : '';
+
+    // Build response - use provider-specific keys if available, otherwise fall back to legacy
+    const response = {
+      openai: openaiKey || (currentProvider === 'openai' ? decryptedLegacyKey : ''),
+      gemini: geminiKey || (currentProvider === 'gemini' ? decryptedLegacyKey : ''),
+      deepseek: deepseekKey || (currentProvider === 'deepseek' ? decryptedLegacyKey : ''),
+      qwen: qwenKey || (currentProvider === 'qwen' ? decryptedLegacyKey : ''),
+    };
+
+    return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
