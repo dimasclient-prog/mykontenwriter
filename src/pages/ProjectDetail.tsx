@@ -15,7 +15,8 @@ import {
   Save,
   Loader2,
   Eye,
-  Zap
+  Zap,
+  Key
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -32,6 +33,8 @@ import { toast } from 'sonner';
 import { Article, Project, ProjectLanguage, ProjectMode, StrategyPack } from '@/types/project';
 import { supabase } from '@/integrations/supabase/client';
 import { ArticleEditor } from '@/components/ArticleEditor';
+import { KeywordsManager } from '@/components/KeywordsManager';
+import { ReferenceFileUpload } from '@/components/ReferenceFileUpload';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -80,6 +83,14 @@ export default function ProjectDetail() {
         targetMarket: project.targetMarket,
         persona: project.persona,
         valueProposition: project.valueProposition,
+        // New fields
+        keywords: project.keywords || [],
+        businessName: project.businessName,
+        businessAddress: project.businessAddress,
+        businessPhone: project.businessPhone,
+        businessEmail: project.businessEmail,
+        referenceText: project.referenceText,
+        referenceFileUrl: project.referenceFileUrl,
       });
       setIsDirty(false);
     }
@@ -126,6 +137,14 @@ export default function ProjectDetail() {
         targetMarket: project.targetMarket,
         persona: project.persona,
         valueProposition: project.valueProposition,
+        // New fields
+        keywords: project.keywords || [],
+        businessName: project.businessName,
+        businessAddress: project.businessAddress,
+        businessPhone: project.businessPhone,
+        businessEmail: project.businessEmail,
+        referenceText: project.referenceText,
+        referenceFileUrl: project.referenceFileUrl,
       });
     }
     setIsDirty(false);
@@ -459,6 +478,10 @@ export default function ProjectDetail() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="keywords" className="gap-1">
+            <Key className="w-3 h-3" />
+            Keywords ({(localProject.keywords || []).length})
+          </TabsTrigger>
           <TabsTrigger value="strategy">Strategy Pack</TabsTrigger>
           <TabsTrigger value="articles">Articles ({project.articles.length})</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -534,6 +557,14 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Keywords Tab */}
+        <TabsContent value="keywords" className="space-y-6">
+          <KeywordsManager
+            keywords={localProject.keywords || []}
+            onChange={(keywords) => handleLocalChange('keywords', keywords)}
+          />
         </TabsContent>
 
         {/* Strategy Pack Tab */}
@@ -875,6 +906,70 @@ export default function ProjectDetail() {
             </CardContent>
           </Card>
 
+          {/* Business Contact Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Business Contact Details</CardTitle>
+              <CardDescription>Contact information used for article CTAs and content</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="businessName">
+                    Business Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="businessName"
+                    value={localProject.businessName || ''}
+                    onChange={(e) => handleLocalChange('businessName', e.target.value)}
+                    placeholder="Your business name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="businessWebsite">Website</Label>
+                  <Input
+                    id="businessWebsite"
+                    value={localProject.websiteUrl || ''}
+                    onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
+                    placeholder="https://example.com"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="businessAddress">Address</Label>
+                <Input
+                  id="businessAddress"
+                  value={localProject.businessAddress || ''}
+                  onChange={(e) => handleLocalChange('businessAddress', e.target.value)}
+                  placeholder="Business address"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="businessPhone">Phone</Label>
+                  <Input
+                    id="businessPhone"
+                    value={localProject.businessPhone || ''}
+                    onChange={(e) => handleLocalChange('businessPhone', e.target.value)}
+                    placeholder="+62 xxx xxxx xxxx"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="businessEmail">Email</Label>
+                  <Input
+                    id="businessEmail"
+                    type="email"
+                    value={localProject.businessEmail || ''}
+                    onChange={(e) => handleLocalChange('businessEmail', e.target.value)}
+                    placeholder="contact@example.com"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Advanced Mode Fields */}
           {localProject.mode === 'advanced' && (
             <Card>
@@ -933,7 +1028,7 @@ export default function ProjectDetail() {
           {localProject.mode === 'auto' && (
             <Card>
               <CardHeader>
-                <CardTitle>Website URL</CardTitle>
+                <CardTitle>Website URL for Analysis</CardTitle>
                 <CardDescription>Enter the website URL to analyze for auto-generating content strategy</CardDescription>
               </CardHeader>
               <CardContent>
@@ -949,6 +1044,15 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
           )}
+
+          {/* Reference Context */}
+          <ReferenceFileUpload
+            referenceText={localProject.referenceText || ''}
+            referenceFileUrl={localProject.referenceFileUrl}
+            onReferenceTextChange={(text) => handleLocalChange('referenceText', text)}
+            onReferenceFileChange={(url) => handleLocalChange('referenceFileUrl', url)}
+            projectId={project.id}
+          />
         </TabsContent>
       </Tabs>
 

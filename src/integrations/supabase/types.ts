@@ -94,16 +94,23 @@ export type Database = {
       projects: {
         Row: {
           brand_voice: string | null
+          business_address: string | null
           business_context: string | null
+          business_email: string | null
+          business_name: string | null
+          business_phone: string | null
           created_at: string
           custom_language: string | null
           id: string
+          keywords: string[] | null
           language: Database["public"]["Enums"]["project_language"]
           mode: Database["public"]["Enums"]["project_mode"]
           name: string
           pain_points: string[] | null
           persona: string | null
           product: string | null
+          reference_file_url: string | null
+          reference_text: string | null
           strategy_pack: Json | null
           target_market: string | null
           updated_at: string
@@ -113,16 +120,23 @@ export type Database = {
         }
         Insert: {
           brand_voice?: string | null
+          business_address?: string | null
           business_context?: string | null
+          business_email?: string | null
+          business_name?: string | null
+          business_phone?: string | null
           created_at?: string
           custom_language?: string | null
           id?: string
+          keywords?: string[] | null
           language?: Database["public"]["Enums"]["project_language"]
           mode?: Database["public"]["Enums"]["project_mode"]
           name: string
           pain_points?: string[] | null
           persona?: string | null
           product?: string | null
+          reference_file_url?: string | null
+          reference_text?: string | null
           strategy_pack?: Json | null
           target_market?: string | null
           updated_at?: string
@@ -132,16 +146,23 @@ export type Database = {
         }
         Update: {
           brand_voice?: string | null
+          business_address?: string | null
           business_context?: string | null
+          business_email?: string | null
+          business_name?: string | null
+          business_phone?: string | null
           created_at?: string
           custom_language?: string | null
           id?: string
+          keywords?: string[] | null
           language?: Database["public"]["Enums"]["project_language"]
           mode?: Database["public"]["Enums"]["project_mode"]
           name?: string
           pain_points?: string[] | null
           persona?: string | null
           product?: string | null
+          reference_file_url?: string | null
+          reference_text?: string | null
           strategy_pack?: Json | null
           target_market?: string | null
           updated_at?: string
