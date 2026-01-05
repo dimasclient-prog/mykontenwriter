@@ -129,6 +129,9 @@ export type Database = {
           user_id: string
           value_proposition: string | null
           website_url: string | null
+          wordpress_password: string | null
+          wordpress_url: string | null
+          wordpress_username: string | null
         }
         Insert: {
           brand_voice?: string | null
@@ -155,6 +158,9 @@ export type Database = {
           user_id: string
           value_proposition?: string | null
           website_url?: string | null
+          wordpress_password?: string | null
+          wordpress_url?: string | null
+          wordpress_username?: string | null
         }
         Update: {
           brand_voice?: string | null
@@ -181,6 +187,9 @@ export type Database = {
           user_id?: string
           value_proposition?: string | null
           website_url?: string | null
+          wordpress_password?: string | null
+          wordpress_url?: string | null
+          wordpress_username?: string | null
         }
         Relationships: []
       }

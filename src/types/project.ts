@@ -51,6 +51,10 @@ export interface ProjectSettings {
   businessEmail?: string;
   referenceText?: string;
   referenceFileUrl?: string;
+  // WordPress integration
+  wordpressUrl?: string;
+  wordpressUsername?: string;
+  wordpressPassword?: string;
   createdAt: Date;
   updatedAt: Date;
 }
