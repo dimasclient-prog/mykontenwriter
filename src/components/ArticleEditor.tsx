@@ -1,22 +1,31 @@
 import { useState } from 'react';
-import { X, Eye, Code, Save } from 'lucide-react';
+import { X, Eye, Code, Save, Send, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Article } from '@/types/project';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ArticleEditorProps {
   article: Article;
   open: boolean;
   onClose: () => void;
   onSave: (content: string) => void;
+  wordpressConfig?: {
+    url: string;
+    username: string;
+    password: string;
+  } | null;
 }
 
-export function ArticleEditor({ article, open, onClose, onSave }: ArticleEditorProps) {
+export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig }: ArticleEditorProps) {
   const [content, setContent] = useState(article.content || '');
   const [isDirty, setIsDirty] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
 
   const handleContentChange = (value: string) => {
     setContent(value);
@@ -28,25 +37,93 @@ export function ArticleEditor({ article, open, onClose, onSave }: ArticleEditorP
     setIsDirty(false);
   };
 
+  const handlePublishToWordPress = async () => {
+    if (!wordpressConfig) {
+      toast.error('WordPress not configured. Please set up WordPress in Project Settings.');
+      return;
+    }
+
+    if (!content) {
+      toast.error('No content to publish');
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('publish-to-wordpress', {
+        body: {
+          wordpressUrl: wordpressConfig.url,
+          username: wordpressConfig.username,
+          password: wordpressConfig.password,
+          title: article.title,
+          content: content,
+          status: 'draft',
+        },
+      });
+
+      if (error) {
+        console.error('WordPress publish error:', error);
+        toast.error(`Failed to publish: ${error.message}`);
+        return;
+      }
+
+      if (data?.success) {
+        setPublishedUrl(data.postUrl);
+        toast.success('Article published as draft to WordPress!');
+      } else if (data?.error) {
+        toast.error(`WordPress error: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('WordPress publish error:', err);
+      toast.error('Failed to publish to WordPress');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const wordCount = content.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-5xl h-[85vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
-          <div className="flex items-center justify-between pr-8">
-            <DialogTitle className="text-xl">{article.title}</DialogTitle>
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-8">
+            <DialogTitle className="text-xl truncate">{article.title}</DialogTitle>
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{wordCount} words</Badge>
               {isDirty && (
                 <Badge variant="outline" className="bg-warning/20 text-warning border-warning/30">
                   Unsaved
                 </Badge>
               )}
+              {publishedUrl && (
+                <a href={publishedUrl} target="_blank" rel="noopener noreferrer">
+                  <Badge className="bg-success/20 text-success border-success/30 gap-1 cursor-pointer hover:bg-success/30">
+                    <ExternalLink className="w-3 h-3" />
+                    View on WordPress
+                  </Badge>
+                </a>
+              )}
               <Button onClick={handleSave} disabled={!isDirty} size="sm" className="gap-2">
                 <Save className="w-4 h-4" />
                 Save
               </Button>
+              {wordpressConfig && (
+                <Button 
+                  onClick={handlePublishToWordPress} 
+                  disabled={isPublishing || !content}
+                  size="sm" 
+                  variant="outline"
+                  className="gap-2"
+                >
+                  {isPublishing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  Draft to WP
+                </Button>
+              )}
             </div>
           </div>
         </DialogHeader>
