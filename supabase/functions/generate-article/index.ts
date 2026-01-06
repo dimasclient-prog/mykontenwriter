@@ -27,7 +27,7 @@ interface ArticleRequest {
   };
 }
 
-async function callOpenAI(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+async function callOpenAI(apiKey: string, model: string, systemPrompt: string, userPrompt: string, retryCount = 0): Promise<string> {
   const modelMap: Record<string, string> = {
     'gpt-4.1': 'gpt-4.1-2025-04-14',
     'gpt-4.1-mini': 'gpt-4.1-mini-2025-04-14',
@@ -68,6 +68,18 @@ async function callOpenAI(apiKey: string, model: string, systemPrompt: string, u
   if (!response.ok) {
     const errorText = await response.text();
     console.error('OpenAI API error:', errorText);
+    
+    // Handle rate limit with retry
+    if (response.status === 429 && retryCount < 3) {
+      const waitTime = (retryCount + 1) * 10;
+      console.log(`Rate limited. Waiting ${waitTime}s before retry ${retryCount + 1}/3...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+      return callOpenAI(apiKey, model, systemPrompt, userPrompt, retryCount + 1);
+    }
+    
+    if (response.status === 429) {
+      throw new Error('Kuota API OpenAI habis. Silakan tunggu beberapa menit atau gunakan provider AI lain di Master Settings.');
+    }
     throw new Error(`OpenAI API error: ${response.status}`);
   }
 
@@ -75,7 +87,7 @@ async function callOpenAI(apiKey: string, model: string, systemPrompt: string, u
   return data.choices[0].message.content;
 }
 
-async function callGemini(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+async function callGemini(apiKey: string, model: string, systemPrompt: string, userPrompt: string, retryCount = 0): Promise<string> {
   const modelMap: Record<string, string> = {
     'gemini-3-pro': 'gemini-2.5-pro',
     'gemini-3-flash': 'gemini-2.5-flash',
@@ -106,6 +118,20 @@ async function callGemini(apiKey: string, model: string, systemPrompt: string, u
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Gemini API error:', errorText);
+    
+    // Handle rate limit with retry
+    if (response.status === 429 && retryCount < 3) {
+      const retryMatch = errorText.match(/retry(?:Delay)?.*?(\d+)/i);
+      const waitTime = retryMatch ? Math.min(parseInt(retryMatch[1]) + 2, 30) : (retryCount + 1) * 10;
+      console.log(`Rate limited. Waiting ${waitTime}s before retry ${retryCount + 1}/3...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+      return callGemini(apiKey, model, systemPrompt, userPrompt, retryCount + 1);
+    }
+    
+    // Provide user-friendly error message
+    if (response.status === 429) {
+      throw new Error('Kuota API Gemini habis. Silakan tunggu beberapa menit atau gunakan provider AI lain di Master Settings.');
+    }
     throw new Error(`Gemini API error: ${response.status}`);
   }
 
