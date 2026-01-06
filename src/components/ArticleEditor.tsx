@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, Code, Save, Send, Loader2, ExternalLink, AlertCircle, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Heading1, Heading2, Heading3, Link as LinkIcon, Undo, Redo } from 'lucide-react';
+import { Eye, Code, Save, Send, Loader2, ExternalLink, AlertCircle, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Heading1, Heading2, Heading3, Link as LinkIcon, Undo, Redo, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,6 +22,7 @@ interface ArticleEditorProps {
   open: boolean;
   onClose: () => void;
   onSave: (content: string) => void;
+  onTitleChange?: (title: string) => void;
   wordpressConfig?: {
     url: string;
     username: string;
@@ -30,9 +32,11 @@ interface ArticleEditorProps {
 
 type PublishStatus = 'idle' | 'publishing' | 'success' | 'error';
 
-export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig }: ArticleEditorProps) {
+export function ArticleEditor({ article, open, onClose, onSave, onTitleChange, wordpressConfig }: ArticleEditorProps) {
   const [content, setContent] = useState(article.content || '');
   const [isDirty, setIsDirty] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(article.title);
   const [publishStatus, setPublishStatus] = useState<PublishStatus>('idle');
   const [publishError, setPublishError] = useState<string | null>(null);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
@@ -79,6 +83,8 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
   // Reset state when article changes
   useEffect(() => {
     setContent(article.content || '');
+    setEditedTitle(article.title);
+    setIsEditingTitle(false);
     setIsDirty(false);
     setPublishStatus('idle');
     setPublishError(null);
@@ -86,7 +92,20 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
     if (editor) {
       editor.commands.setContent(article.content || '', { emitUpdate: false });
     }
-  }, [article.id, article.content, editor]);
+  }, [article.id, article.content, article.title, editor]);
+
+  const handleSaveTitle = () => {
+    if (editedTitle.trim() && editedTitle !== article.title && onTitleChange) {
+      onTitleChange(editedTitle.trim());
+      toast.success('Title updated');
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleCancelTitleEdit = () => {
+    setEditedTitle(article.title);
+    setIsEditingTitle(false);
+  };
 
   const handleContentChange = (value: string) => {
     setContent(value);
@@ -176,7 +195,42 @@ export function ArticleEditor({ article, open, onClose, onSave, wordpressConfig 
       <DialogContent className="max-w-5xl h-[85vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-8">
-            <DialogTitle className="text-xl truncate">{article.title}</DialogTitle>
+            {/* Editable Title */}
+            {isEditingTitle ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Input
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTitle();
+                    if (e.key === 'Escape') handleCancelTitleEdit();
+                  }}
+                  className="text-lg font-semibold flex-1"
+                  autoFocus
+                />
+                <Button size="sm" variant="ghost" onClick={handleSaveTitle}>
+                  <Check className="w-4 h-4 text-success" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleCancelTitleEdit}>
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 min-w-0">
+                <DialogTitle className="text-xl truncate">{article.title}</DialogTitle>
+                {onTitleChange && (
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => setIsEditingTitle(true)}
+                    className="shrink-0"
+                    title="Edit title"
+                  >
+                    <Pencil className="w-3 h-3 text-muted-foreground hover:text-primary" />
+                  </Button>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{wordCount} words</Badge>
               {isDirty && (
