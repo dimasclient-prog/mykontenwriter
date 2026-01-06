@@ -103,6 +103,8 @@ export default function ProjectDetail() {
   
   // Generated keyword ideas state
   const [generatedKeywords, setGeneratedKeywords] = useState<GeneratedKeyword[]>([]);
+  const [keywordIdeasForArticles, setKeywordIdeasForArticles] = useState<string[]>([]);
+  const [showKeywordArticleModal, setShowKeywordArticleModal] = useState(false);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -922,6 +924,16 @@ export default function ProjectDetail() {
             onKeywordsGenerated={setGeneratedKeywords}
             existingArticleTitles={project.articles.map(a => a.title)}
             language={getProjectLanguageForKeywords()}
+            projectKeywords={localProject.keywords || []}
+            onAddToProjectKeywords={(newKeywords) => {
+              const existingKeywords = localProject.keywords || [];
+              const combinedKeywords = [...existingKeywords, ...newKeywords];
+              handleLocalChange('keywords', combinedKeywords);
+            }}
+            onCreateArticles={(keywords) => {
+              setKeywordIdeasForArticles(keywords);
+              setShowKeywordArticleModal(true);
+            }}
           />
         </TabsContent>
 
@@ -1576,6 +1588,67 @@ export default function ProjectDetail() {
         open={showTitleGeneratorModal}
         onOpenChange={setShowTitleGeneratorModal}
         onGenerate={handleGenerateTitles}
+        isGenerating={isGeneratingTitles}
+      />
+
+      {/* Title Generator Modal for Keyword Ideas */}
+      <TitleGeneratorModal
+        open={showKeywordArticleModal}
+        onOpenChange={(open) => {
+          setShowKeywordArticleModal(open);
+          if (!open) setKeywordIdeasForArticles([]);
+        }}
+        onGenerate={async (config) => {
+          setIsGeneratingTitles(true);
+
+          try {
+            const existingTitles = project.articles.map((a) => a.title);
+
+            const { data, error } = await supabase.functions.invoke('generate-titles', {
+              body: {
+                count: config.articleCount,
+                existingTitles,
+                articleTypes: config.articleTypes,
+                funnelType: config.funnelType,
+                projectData: {
+                  language: getProjectLanguage(),
+                  keywords: keywordIdeasForArticles, // Use selected keyword ideas
+                  topicClusters: project.strategyPack?.topicClusters,
+                  referenceText: project.referenceText,
+                  personaSummary: project.strategyPack?.personaSummary,
+                  corePainPoints: project.strategyPack?.corePainPoints,
+                  product: project.product,
+                  targetMarket: project.targetMarket,
+                  brandVoice: project.brandVoice || masterSettings.defaultBrandVoice,
+                  businessContext: project.businessContext,
+                },
+              },
+            });
+
+            if (error) {
+              console.error('Title generation error:', error);
+              const errorMessage = error.message || 'Failed to generate article titles';
+              toast.error(errorMessage.includes('API key') ? errorMessage : 'Failed to generate article titles');
+              return;
+            }
+
+            if (data?.titles && Array.isArray(data.titles)) {
+              for (const title of data.titles) {
+                await addArticle(project.id, title);
+              }
+              toast.success(`Generated ${data.titles.length} article titles from keyword ideas!`);
+              setShowKeywordArticleModal(false);
+              setKeywordIdeasForArticles([]);
+            } else if (data?.error) {
+              toast.error(data.error);
+            }
+          } catch (err) {
+            console.error('Title generation error:', err);
+            toast.error('Failed to generate article titles');
+          } finally {
+            setIsGeneratingTitles(false);
+          }
+        }}
         isGenerating={isGeneratingTitles}
       />
 
