@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sparkles, Loader2, Search, ArrowUpDown, Filter, FileText } from 'lucide-react';
+import { Sparkles, Loader2, Search, ArrowUpDown, Filter, FileText, Plus, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -23,6 +24,9 @@ interface KeywordIdeasManagerProps {
   onKeywordsGenerated: (keywords: GeneratedKeyword[]) => void;
   existingArticleTitles: string[];
   language: string;
+  projectKeywords: string[];
+  onAddToProjectKeywords: (keywords: string[]) => void;
+  onCreateArticles: (keywords: string[]) => void;
 }
 
 const TYPE_LABELS: Record<KeywordType, string> = {
@@ -44,6 +48,9 @@ export function KeywordIdeasManager({
   onKeywordsGenerated,
   existingArticleTitles,
   language,
+  projectKeywords,
+  onAddToProjectKeywords,
+  onCreateArticles,
 }: KeywordIdeasManagerProps) {
   const [seedKeyword, setSeedKeyword] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -52,6 +59,7 @@ export function KeywordIdeasManager({
   const [articleFilter, setArticleFilter] = useState<'all' | 'with-article' | 'without-article'>('all');
   const [sortBy, setSortBy] = useState<'keyword' | 'type'>('keyword');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
 
   // Check if keyword has article by matching against article titles
   const keywordsWithArticleStatus = useMemo(() => {
@@ -61,8 +69,11 @@ export function KeywordIdeasManager({
         title.toLowerCase().includes(kw.keyword.toLowerCase()) ||
         kw.keyword.toLowerCase().includes(title.toLowerCase())
       ),
+      isInProject: projectKeywords.some(pk => 
+        pk.toLowerCase() === kw.keyword.toLowerCase()
+      ),
     }));
-  }, [generatedKeywords, existingArticleTitles]);
+  }, [generatedKeywords, existingArticleTitles, projectKeywords]);
 
   // Filter and sort keywords
   const filteredKeywords = useMemo(() => {
@@ -127,6 +138,7 @@ export function KeywordIdeasManager({
     }
 
     setIsGenerating(true);
+    setSelectedKeywords(new Set()); // Clear selection when generating new keywords
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-keywords', {
@@ -163,6 +175,60 @@ export function KeywordIdeasManager({
       setSortBy(column);
       setSortOrder('asc');
     }
+  };
+
+  const toggleKeywordSelection = (keyword: string) => {
+    setSelectedKeywords(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(keyword)) {
+        newSet.delete(keyword);
+      } else {
+        newSet.add(keyword);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedKeywords.size === filteredKeywords.length && filteredKeywords.length > 0) {
+      // Deselect all
+      setSelectedKeywords(new Set());
+    } else {
+      // Select all filtered keywords
+      setSelectedKeywords(new Set(filteredKeywords.map(kw => kw.keyword)));
+    }
+  };
+
+  const isAllSelected = filteredKeywords.length > 0 && selectedKeywords.size === filteredKeywords.length;
+  const isSomeSelected = selectedKeywords.size > 0 && selectedKeywords.size < filteredKeywords.length;
+
+  const handleAddToProjectKeywords = () => {
+    if (selectedKeywords.size === 0) {
+      toast.error('Please select at least one keyword');
+      return;
+    }
+
+    const keywordsToAdd = Array.from(selectedKeywords).filter(
+      kw => !projectKeywords.some(pk => pk.toLowerCase() === kw.toLowerCase())
+    );
+
+    if (keywordsToAdd.length === 0) {
+      toast.info('All selected keywords are already in project keywords');
+      return;
+    }
+
+    onAddToProjectKeywords(keywordsToAdd);
+    toast.success(`Added ${keywordsToAdd.length} keywords to project`);
+    setSelectedKeywords(new Set());
+  };
+
+  const handleCreateArticles = () => {
+    if (selectedKeywords.size === 0) {
+      toast.error('Please select at least one keyword');
+      return;
+    }
+
+    onCreateArticles(Array.from(selectedKeywords));
   };
 
   return (
@@ -247,6 +313,29 @@ export function KeywordIdeasManager({
                   <span className="text-success">With Article: {stats.withArticle}</span>
                 </CardDescription>
               </div>
+              
+              {/* Action buttons */}
+              {selectedKeywords.size > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddToProjectKeywords}
+                    className="gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add to Keywords ({selectedKeywords.size})
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleCreateArticles}
+                    className="gap-2"
+                  >
+                    <Lightbulb className="w-4 h-4" />
+                    Create Articles ({selectedKeywords.size})
+                  </Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -294,6 +383,18 @@ export function KeywordIdeasManager({
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={isAllSelected}
+                        ref={(ref) => {
+                          if (ref) {
+                            (ref as HTMLButtonElement).dataset.state = isSomeSelected ? 'indeterminate' : isAllSelected ? 'checked' : 'unchecked';
+                          }
+                        }}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="w-[50px]">#</TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-muted/50"
@@ -313,21 +414,40 @@ export function KeywordIdeasManager({
                         <ArrowUpDown className="w-4 h-4" />
                       </div>
                     </TableHead>
-                    <TableHead className="w-[120px]">Article</TableHead>
+                    <TableHead className="w-[120px]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredKeywords.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         No keywords found matching your filters
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredKeywords.map((kw, index) => (
-                      <TableRow key={`${kw.keyword}-${index}`}>
+                      <TableRow 
+                        key={`${kw.keyword}-${index}`}
+                        className={selectedKeywords.has(kw.keyword) ? 'bg-primary/5' : ''}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedKeywords.has(kw.keyword)}
+                            onCheckedChange={() => toggleKeywordSelection(kw.keyword)}
+                            aria-label={`Select ${kw.keyword}`}
+                          />
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{kw.keyword}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {kw.keyword}
+                            {kw.isInProject && (
+                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                                In Project
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={TYPE_COLORS[kw.type]}>
                             {TYPE_LABELS[kw.type]}
@@ -351,8 +471,11 @@ export function KeywordIdeasManager({
               </Table>
             </div>
             
-            <div className="text-sm text-muted-foreground">
-              Showing {filteredKeywords.length} of {stats.total} keywords
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Showing {filteredKeywords.length} of {stats.total} keywords</span>
+              {selectedKeywords.size > 0 && (
+                <span className="text-primary font-medium">{selectedKeywords.size} selected</span>
+              )}
             </div>
           </CardContent>
         </Card>
