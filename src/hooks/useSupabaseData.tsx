@@ -199,9 +199,11 @@ export function useSupabaseData() {
     }
 
     const loadData = async () => {
-      setLoading(true);
+      // Only show loading on initial load (no data yet)
+      const isInitialLoad = projects.length === 0;
+      if (isInitialLoad) setLoading(true);
       await Promise.all([fetchMasterSettings(), fetchProjects()]);
-      setLoading(false);
+      if (isInitialLoad) setLoading(false);
     };
 
     loadData();
