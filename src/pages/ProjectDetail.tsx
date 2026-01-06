@@ -45,6 +45,7 @@ import { Article, Project, ProjectLanguage, ProjectMode, StrategyPack } from '@/
 import { supabase } from '@/integrations/supabase/client';
 import { ArticleEditor } from '@/components/ArticleEditor';
 import { KeywordsManager } from '@/components/KeywordsManager';
+import { KeywordIdeasManager, GeneratedKeyword } from '@/components/KeywordIdeasManager';
 import { ReferenceFileUpload } from '@/components/ReferenceFileUpload';
 import { TitleGeneratorModal, ArticleType, FunnelType } from '@/components/TitleGeneratorModal';
 import { ProjectShareModal } from '@/components/ProjectShareModal';
@@ -95,6 +96,13 @@ export default function ProjectDetail() {
   // Article filter state
   const [articleFilter, setArticleFilter] = useState<ArticleFilterType>('all');
   const [isPublishingToWordPress, setIsPublishingToWordPress] = useState(false);
+  
+  // Inline title editing state
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
+  
+  // Generated keyword ideas state
+  const [generatedKeywords, setGeneratedKeywords] = useState<GeneratedKeyword[]>([]);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -559,6 +567,34 @@ export default function ProjectDetail() {
     toast.success('Article saved');
   };
 
+  // Inline title editing handlers
+  const handleStartEditTitle = (article: Article) => {
+    setEditingTitleId(article.id);
+    setEditingTitleValue(article.title);
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editingTitleId || !editingTitleValue.trim()) return;
+    await updateArticle(project.id, editingTitleId, { title: editingTitleValue.trim() });
+    setEditingTitleId(null);
+    setEditingTitleValue('');
+    toast.success('Title updated');
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditingTitleId(null);
+    setEditingTitleValue('');
+  };
+
+  // Get project language for keyword generation
+  const getProjectLanguageForKeywords = () => {
+    const lang = project.language;
+    if (lang === 'other' && project.customLanguage) {
+      return project.customLanguage;
+    }
+    return lang.charAt(0).toUpperCase() + lang.slice(1);
+  };
+
   const getStatusIcon = (status: Article['status']) => {
     switch (status) {
       case 'completed':
@@ -879,6 +915,14 @@ export default function ProjectDetail() {
             keywords={localProject.keywords || []}
             onChange={(keywords) => handleLocalChange('keywords', keywords)}
           />
+          
+          {/* Keyword Ideas Generator */}
+          <KeywordIdeasManager
+            generatedKeywords={generatedKeywords}
+            onKeywordsGenerated={setGeneratedKeywords}
+            existingArticleTitles={project.articles.map(a => a.title)}
+            language={getProjectLanguageForKeywords()}
+          />
         </TabsContent>
 
         {/* Market Insight Tab */}
@@ -1167,9 +1211,36 @@ export default function ProjectDetail() {
                             getStatusIcon(article.status)
                           )}
                         </div>
-                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 min-w-0">
-                          <span className="font-medium break-words md:truncate">{article.title}</span>
-                          {article.wordCount && (
+                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 min-w-0 flex-1">
+                          {editingTitleId === article.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <Input
+                                value={editingTitleValue}
+                                onChange={(e) => setEditingTitleValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveTitle();
+                                  if (e.key === 'Escape') handleCancelEditTitle();
+                                }}
+                                className="flex-1"
+                                autoFocus
+                              />
+                              <Button size="sm" onClick={handleSaveTitle}>
+                                <Check className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={handleCancelEditTitle}>
+                                <AlertCircle className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span 
+                              className="font-medium break-words md:truncate cursor-pointer hover:text-primary transition-colors"
+                              onClick={() => handleStartEditTitle(article)}
+                              title="Click to edit title"
+                            >
+                              {article.title}
+                            </span>
+                          )}
+                          {article.wordCount && editingTitleId !== article.id && (
                             <span className="text-xs text-muted-foreground whitespace-nowrap">
                               {article.wordCount} words
                             </span>
@@ -1179,6 +1250,17 @@ export default function ProjectDetail() {
                       <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-7 md:ml-0">
                         {getStatusBadge(article.status)}
                         <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          {/* Edit title button */}
+                          {editingTitleId !== article.id && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleStartEditTitle(article)}
+                              title="Edit title"
+                            >
+                              <Pencil className="w-3 h-3 text-muted-foreground hover:text-primary" />
+                            </Button>
+                          )}
                           {article.status === 'completed' && (
                             <Button
                               size="sm"
@@ -1470,6 +1552,11 @@ export default function ProjectDetail() {
           open={!!editingArticle}
           onClose={() => setEditingArticle(null)}
           onSave={handleSaveArticleContent}
+          onTitleChange={async (newTitle) => {
+            await updateArticle(project.id, editingArticle.id, { title: newTitle });
+            // Update the local editing article state to reflect the new title
+            setEditingArticle(prev => prev ? { ...prev, title: newTitle } : null);
+          }}
           wordpressConfig={
             (localProject.wordpressUrl || project.wordpressUrl) &&
             (localProject.wordpressUsername || project.wordpressUsername) &&
