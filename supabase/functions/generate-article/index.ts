@@ -388,9 +388,20 @@ ${hasBusinessDetails ? '- Include a soft, helpful CTA section with business cont
     });
   } catch (error) {
     console.error('Error generating article:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Check if it's a rate limit error
+    const isRateLimitError = errorMessage.includes('Kuota API') || 
+                             errorMessage.includes('rate limit') || 
+                             errorMessage.includes('429') ||
+                             errorMessage.includes('quota');
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: errorMessage,
+        errorCode: isRateLimitError ? 'RATE_LIMIT' : 'GENERATION_ERROR'
+      }),
+      { status: isRateLimitError ? 429 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

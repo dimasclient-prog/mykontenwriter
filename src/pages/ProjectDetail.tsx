@@ -51,6 +51,8 @@ import { TitleGeneratorModal, ArticleType, FunnelType } from '@/components/Title
 import { ProjectShareModal } from '@/components/ProjectShareModal';
 import { WordPressConnector } from '@/components/WordPressConnector';
 import { ArticleFilter, ArticleFilterType } from '@/components/ArticleFilter';
+import { ProviderSwitchModal } from '@/components/ProviderSwitchModal';
+import { AIProvider, AI_PROVIDER_NAMES, AI_MODELS } from '@/types/project';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -58,6 +60,7 @@ export default function ProjectDetail() {
   const { 
     projects, 
     masterSettings,
+    updateMasterSettings,
     setActiveProject, 
     updateProject, 
     updateArticle,
@@ -105,6 +108,9 @@ export default function ProjectDetail() {
   const [generatedKeywords, setGeneratedKeywords] = useState<GeneratedKeyword[]>([]);
   const [keywordIdeasForArticles, setKeywordIdeasForArticles] = useState<string[]>([]);
   const [showKeywordArticleModal, setShowKeywordArticleModal] = useState(false);
+  
+  // Provider switch modal state
+  const [showProviderSwitchModal, setShowProviderSwitchModal] = useState(false);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -332,7 +338,15 @@ export default function ProjectDetail() {
       if (error) {
         console.error('Article generation error:', error);
         await updateArticle(project.id, articleId, { status: 'todo' });
-        const errorMessage = error.message || 'Failed to generate article';
+        
+        // Check if it's a rate limit error
+        const errorMessage = error.message || '';
+        if (errorMessage.includes('Kuota API') || errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+          toast.error(`${AI_PROVIDER_NAMES[masterSettings.aiProvider]} API limit tercapai`);
+          setShowProviderSwitchModal(true);
+          return;
+        }
+        
         toast.error(errorMessage.includes('API key') ? errorMessage : 'Failed to generate article');
         return;
       }
@@ -346,6 +360,14 @@ export default function ProjectDetail() {
         toast.success('Article generated successfully!');
       } else if (data?.error) {
         await updateArticle(project.id, articleId, { status: 'todo' });
+        
+        // Check if it's a rate limit error from data
+        if (data.errorCode === 'RATE_LIMIT' || data.error.includes('Kuota API')) {
+          toast.error(`${AI_PROVIDER_NAMES[masterSettings.aiProvider]} API limit tercapai`);
+          setShowProviderSwitchModal(true);
+          return;
+        }
+        
         toast.error(data.error);
       }
     } catch (err) {
@@ -1658,6 +1680,20 @@ export default function ProjectDetail() {
         onOpenChange={setShowShareModal}
         projectId={project.id}
         projectName={project.name}
+      />
+
+      {/* Provider Switch Modal */}
+      <ProviderSwitchModal
+        open={showProviderSwitchModal}
+        onOpenChange={setShowProviderSwitchModal}
+        currentProvider={masterSettings.aiProvider}
+        onSwitch={async (provider) => {
+          await updateMasterSettings({
+            aiProvider: provider,
+            defaultModel: AI_MODELS[provider][0],
+          });
+          toast.success(`Switched to ${AI_PROVIDER_NAMES[provider]}`);
+        }}
       />
     </div>
   );
