@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 type AnalysisMode = 'basic' | 'advanced';
 
@@ -50,39 +51,96 @@ export default function NewProject() {
 
     setIsCreating(true);
     
-    // Determine mode based on analysis mode selection
-    const mode = hasWebsiteUrl && analysisMode === 'basic' ? 'auto' : 'advanced';
-    
-    const projectId = await createProject(
-      projectName.trim(),
-      mode,
-      language,
-      language === 'other' ? customLanguage.trim() : undefined
-    );
-    
-    if (projectId) {
-      // Generate initial persona based on business context
-      const personaName = hasWebsiteUrl 
-        ? 'Primary Customer' 
-        : 'Target Customer';
+    try {
+      // Determine mode based on analysis mode selection
+      const mode = hasWebsiteUrl && analysisMode === 'basic' ? 'auto' : 'advanced';
       
-      const painPoints = businessContext 
-        ? ['Understanding the product/service', 'Finding the right solution']
-        : [];
+      // Generate persona using AI
+      toast.info('Analyzing business and generating persona...');
       
-      await addPersona(projectId, {
-        name: personaName,
-        role: targetMarket || 'Potential Customer',
-        location: '',
-        familyStatus: '',
-        painPoints,
-        concerns: businessContext ? 'Looking for reliable solutions' : undefined
+      const { data: personaData, error: personaError } = await supabase.functions.invoke('generate-persona', {
+        body: {
+          websiteUrl: hasWebsiteUrl ? websiteUrl.trim() : undefined,
+          businessContext: !hasWebsiteUrl ? businessContext.trim() : undefined,
+          analysisMode,
+          language: language === 'other' ? customLanguage.trim() : language,
+          advancedData: analysisMode === 'advanced' ? {
+            product,
+            targetMarket,
+            valueProposition
+          } : undefined
+        }
       });
+
+      if (personaError) {
+        console.error('Persona generation error:', personaError);
+        toast.error('Failed to generate persona, creating project with default persona');
+      }
+
+      const generatedPersona = personaData?.persona;
+      const businessInfo = personaData?.businessInfo;
+
+      // Create project with extracted business info
+      const projectId = await createProject(
+        projectName.trim(),
+        mode,
+        language,
+        language === 'other' ? customLanguage.trim() : undefined,
+        hasWebsiteUrl ? websiteUrl.trim() : undefined,
+        !hasWebsiteUrl ? businessContext.trim() : undefined
+      );
       
-      toast.success('Project created successfully');
-      navigate(`/project/${projectId}`);
-    } else {
-      toast.error('Failed to create project');
+      if (projectId) {
+        // Update project with extracted business information
+        if (businessInfo) {
+          const { updateProject } = await import('@/contexts/DataContext').then(m => {
+            // We need to use the hook context, but since we're in a callback,
+            // we'll update via direct supabase call
+            return { updateProject: null };
+          });
+          
+          // Update project with business info directly
+          await supabase
+            .from('projects')
+            .update({
+              business_name: businessInfo.businessName !== 'Not available' ? businessInfo.businessName : null,
+              business_address: businessInfo.businessAddress !== 'Not available' ? businessInfo.businessAddress : null,
+              business_phone: businessInfo.businessPhone !== 'Not available' ? businessInfo.businessPhone : null,
+              business_email: businessInfo.businessEmail !== 'Not available' ? businessInfo.businessEmail : null,
+              product: businessInfo.product !== 'Not available' ? businessInfo.product : product || null,
+              target_market: businessInfo.targetMarket !== 'Not available' ? businessInfo.targetMarket : targetMarket || null,
+              value_proposition: businessInfo.valueProposition !== 'Not available' ? businessInfo.valueProposition : valueProposition || null,
+            })
+            .eq('id', projectId);
+        }
+
+        // Add generated persona or fallback
+        const persona = generatedPersona || {
+          name: 'Primary Customer',
+          role: targetMarket || 'Potential Customer',
+          location: '',
+          familyStatus: '',
+          painPoints: ['Understanding the product/service', 'Finding the right solution'],
+          concerns: 'Looking for reliable solutions'
+        };
+        
+        await addPersona(projectId, {
+          name: persona.name,
+          role: persona.role,
+          location: persona.location || '',
+          familyStatus: persona.familyStatus || '',
+          painPoints: persona.painPoints || [],
+          concerns: persona.concerns
+        });
+        
+        toast.success('Project created with AI-generated persona!');
+        navigate(`/project/${projectId}`);
+      } else {
+        toast.error('Failed to create project');
+      }
+    } catch (error) {
+      console.error('Project creation error:', error);
+      toast.error('An error occurred while creating the project');
     }
     
     setIsCreating(false);
