@@ -19,6 +19,51 @@ interface PersonaRequest {
   };
 }
 
+async function scrapeWebsite(url: string): Promise<string | null> {
+  const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
+  if (!apiKey) {
+    console.log('FIRECRAWL_API_KEY not configured, skipping website scrape');
+    return null;
+  }
+
+  try {
+    let formattedUrl = url.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    console.log('Scraping website with Firecrawl:', formattedUrl);
+
+    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: formattedUrl,
+        formats: ['markdown'],
+        onlyMainContent: false, // Get full page including contact info
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Firecrawl API error:', errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const markdown = data.data?.markdown || data.markdown;
+    
+    console.log('Website scraped successfully, content length:', markdown?.length || 0);
+    return markdown || null;
+  } catch (error) {
+    console.error('Error scraping website:', error);
+    return null;
+  }
+}
+
 async function callOpenAI(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
   const modelMap: Record<string, string> = {
     'gpt-5.2': 'gpt-5-2025-08-07',
@@ -232,8 +277,14 @@ serve(async (req) => {
       ? 'the specified language' 
       : language.charAt(0).toUpperCase() + language.slice(1);
 
+    // Scrape website content if URL provided and in basic mode
+    let websiteContent: string | null = null;
+    if (websiteUrl && analysisMode === 'basic') {
+      websiteContent = await scrapeWebsite(websiteUrl);
+    }
+
     const systemPrompt = `You are an expert market researcher and customer persona specialist.
-Your task is to generate a detailed customer persona based on business information.
+Your task is to generate a detailed customer persona AND extract comprehensive business information.
 ALL OUTPUT MUST BE IN ${languageInstruction.toUpperCase()} LANGUAGE.
 
 You must respond with a valid JSON object containing:
@@ -247,35 +298,54 @@ You must respond with a valid JSON object containing:
     "concerns": "A brief summary of their main concerns and what they're looking for"
   },
   "businessInfo": {
-    "businessName": "Extracted or inferred business name",
-    "businessAddress": "If available from URL analysis",
-    "businessPhone": "If available from URL analysis", 
-    "businessEmail": "If available from URL analysis",
-    "product": "Main product or service",
-    "targetMarket": "Target market description",
-    "valueProposition": "Core value proposition"
+    "businessName": "Extract the exact business/company name from the website",
+    "businessAddress": "Extract the full physical address if available",
+    "businessPhone": "Extract phone number(s) if available", 
+    "businessEmail": "Extract email address(es) if available",
+    "product": "Main products or services offered (be specific and comprehensive)",
+    "targetMarket": "Who are the target customers",
+    "valueProposition": "Core value proposition or unique selling points"
   }
 }
 
-Requirements:
-- Create ONE primary persona that represents the ideal customer
-- The persona should be realistic and detailed
-- Pain points should be specific to the business/product context
-- Generate 3-5 relevant pain points
-- Concerns should reflect real customer worries
-- Extract business information if analyzing a URL
-- If information is not available, use "Not available" for businessInfo fields`;
+CRITICAL REQUIREMENTS:
+- For businessInfo, extract REAL information from the website content provided
+- Look for contact pages, footer information, about pages for business details
+- Phone numbers often appear in headers, footers, or contact sections
+- Addresses may be in footer or contact page
+- Email addresses may be in contact forms or listed explicitly
+- If a field cannot be found in the website, use "Tidak ditemukan" or "Not found"
+- DO NOT make up business contact information - only use what's actually on the website
+- For product/service, list ALL main offerings you can identify`;
 
     let userPrompt: string;
     if (websiteUrl && analysisMode === 'basic') {
-      userPrompt = `Analyze this website and generate a customer persona:
+      if (websiteContent) {
+        userPrompt = `Analyze this website content and generate a customer persona WITH extracted business information:
+
+Website URL: ${websiteUrl}
+
+=== WEBSITE CONTENT START ===
+${websiteContent.substring(0, 15000)}
+=== WEBSITE CONTENT END ===
+
+Based on the website content above:
+1. EXTRACT all business contact information (name, address, phone, email)
+2. IDENTIFY all products and services offered
+3. DETERMINE the target market
+4. CREATE a detailed customer persona representing the ideal customer
+
+IMPORTANT: Only include business information that is ACTUALLY present in the website content. Do not fabricate contact details.`;
+      } else {
+        userPrompt = `Analyze this website and generate a customer persona:
 Website URL: ${websiteUrl}
 
 Based on what you can infer about this business:
 1. Identify the type of business and what they offer
 2. Determine who their ideal customer would be
 3. Create a detailed persona representing that customer
-4. Extract any business contact information visible on the website`;
+4. Note: Website content could not be scraped, so business contact details may not be available`;
+      }
     } else if (websiteUrl && analysisMode === 'advanced') {
       userPrompt = `Generate a customer persona for this business:
 Website URL: ${websiteUrl}
