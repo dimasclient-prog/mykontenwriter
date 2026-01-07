@@ -1,28 +1,43 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Globe, Pencil, Languages, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Globe, FileText, Languages, Loader2, Zap, Settings2 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
-import { ProjectMode, ProjectLanguage } from '@/types/project';
+import { ProjectLanguage } from '@/types/project';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+type AnalysisMode = 'basic' | 'advanced';
+
 export default function NewProject() {
   const navigate = useNavigate();
-  const { createProject } = useData();
+  const { createProject, addPersona } = useData();
   
   const [step, setStep] = useState(1);
   const [projectName, setProjectName] = useState('');
-  const [mode, setMode] = useState<ProjectMode>('auto');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [businessContext, setBusinessContext] = useState('');
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('basic');
   const [language, setLanguage] = useState<ProjectLanguage>('english');
   const [customLanguage, setCustomLanguage] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Advanced mode fields
+  const [product, setProduct] = useState('');
+  const [targetMarket, setTargetMarket] = useState('');
+  const [valueProposition, setValueProposition] = useState('');
 
+  const hasWebsiteUrl = websiteUrl.trim().length > 0;
+  
+  // Calculate total steps based on whether URL is provided
+  const totalSteps = hasWebsiteUrl ? 4 : 4; // Step 3 is conditional content
+  
   const handleCreate = async () => {
     if (!projectName.trim()) {
       toast.error('Please enter a project name');
@@ -34,27 +49,64 @@ export default function NewProject() {
     }
 
     setIsCreating(true);
+    
+    // Determine mode based on analysis mode selection
+    const mode = hasWebsiteUrl && analysisMode === 'basic' ? 'auto' : 'advanced';
+    
     const projectId = await createProject(
       projectName.trim(),
       mode,
       language,
       language === 'other' ? customLanguage.trim() : undefined
     );
-    setIsCreating(false);
     
     if (projectId) {
+      // Generate initial persona based on business context
+      const personaName = hasWebsiteUrl 
+        ? 'Primary Customer' 
+        : 'Target Customer';
+      
+      const painPoints = businessContext 
+        ? ['Understanding the product/service', 'Finding the right solution']
+        : [];
+      
+      await addPersona(projectId, {
+        name: personaName,
+        role: targetMarket || 'Potential Customer',
+        location: '',
+        familyStatus: '',
+        painPoints,
+        concerns: businessContext ? 'Looking for reliable solutions' : undefined
+      });
+      
       toast.success('Project created successfully');
       navigate(`/project/${projectId}`);
     } else {
       toast.error('Failed to create project');
     }
+    
+    setIsCreating(false);
   };
 
   const canProceed = () => {
     if (step === 1) return projectName.trim().length > 0;
-    if (step === 2) return true;
-    if (step === 3) return language !== 'other' || customLanguage.trim().length > 0;
+    if (step === 2) return true; // URL is optional
+    if (step === 3) {
+      if (!hasWebsiteUrl) {
+        return businessContext.trim().length > 0;
+      }
+      return true; // Analysis mode selection is always valid
+    }
+    if (step === 4) return language !== 'other' || customLanguage.trim().length > 0;
     return true;
+  };
+
+  const getStepTitle = (stepNum: number) => {
+    if (stepNum === 1) return 'Name';
+    if (stepNum === 2) return 'URL';
+    if (stepNum === 3) return hasWebsiteUrl ? 'Mode' : 'Context';
+    if (stepNum === 4) return 'Language';
+    return '';
   };
 
   return (
@@ -75,18 +127,23 @@ export default function NewProject() {
 
       {/* Progress Steps */}
       <div className="flex items-center gap-2 mb-8">
-        {[1, 2, 3].map((s) => (
+        {[1, 2, 3, 4].map((s) => (
           <div key={s} className="flex items-center gap-2">
-            <div
-              className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
-                step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              )}
-            >
-              {s}
+            <div className="flex flex-col items-center">
+              <div
+                className={cn(
+                  'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
+                  step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                )}
+              >
+                {s}
+              </div>
+              <span className="text-xs text-muted-foreground mt-1 hidden sm:block">
+                {getStepTitle(s)}
+              </span>
             </div>
-            {s < 3 && (
-              <div className={cn('w-16 h-0.5', step > s ? 'bg-primary' : 'bg-muted')} />
+            {s < 4 && (
+              <div className={cn('w-8 md:w-16 h-0.5', step > s ? 'bg-primary' : 'bg-muted')} />
             )}
           </div>
         ))}
@@ -104,7 +161,9 @@ export default function NewProject() {
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="projectName">Project Name</Label>
+                <Label htmlFor="projectName">
+                  Project Name <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="projectName"
                   value={projectName}
@@ -118,75 +177,182 @@ export default function NewProject() {
         </Card>
       )}
 
-      {/* Step 2: Mode Selection */}
+      {/* Step 2: Website URL */}
       {step === 2 && (
         <Card className="animate-slide-up">
           <CardHeader>
-            <CardTitle>Project Mode</CardTitle>
+            <CardTitle>Website URL (Optional)</CardTitle>
             <CardDescription>
-              Choose how you want to provide business information
+              Provide a website URL to automatically analyze business context, or skip to enter manually
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={mode} onValueChange={(v) => setMode(v as ProjectMode)}>
-              <div className="space-y-4">
-                <label
-                  htmlFor="mode-auto"
-                  className={cn(
-                    'flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all',
-                    mode === 'auto' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                  )}
-                >
-                  <RadioGroupItem value="auto" id="mode-auto" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <Globe className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">Auto Mode (URL)</h3>
-                        <p className="text-sm text-muted-foreground">Analyze website automatically</p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-13">
-                      Provide a website URL and we'll automatically extract business type, products, 
-                      target audience, and value proposition.
-                    </p>
-                  </div>
-                </label>
-
-                <label
-                  htmlFor="mode-advanced"
-                  className={cn(
-                    'flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all',
-                    mode === 'advanced' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                  )}
-                >
-                  <RadioGroupItem value="advanced" id="mode-advanced" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <Pencil className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">Advanced Mode (Manual)</h3>
-                        <p className="text-sm text-muted-foreground">Enter details manually</p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-13">
-                      Manually input product/service details, target market, persona, pain points, 
-                      and value proposition for precise control.
-                    </p>
-                  </div>
-                </label>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="websiteUrl">Website URL</Label>
+                <Input
+                  id="websiteUrl"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  type="url"
+                />
               </div>
-            </RadioGroup>
+              <p className="text-sm text-muted-foreground">
+                {websiteUrl.trim() 
+                  ? "We'll analyze this website to understand your business" 
+                  : "Leave empty to describe your business manually in the next step"}
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 3: Language Selection */}
+      {/* Step 3: Conditional - Business Context OR Analysis Mode */}
       {step === 3 && (
+        <Card className="animate-slide-up">
+          {!hasWebsiteUrl ? (
+            // No URL - Ask for business context
+            <>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Business Context
+                </CardTitle>
+                <CardDescription>
+                  Describe your business so we can generate relevant content
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="businessContext">
+                      Describe Your Business <span className="text-destructive">*</span>
+                    </Label>
+                    <Textarea
+                      id="businessContext"
+                      value={businessContext}
+                      onChange={(e) => setBusinessContext(e.target.value)}
+                      placeholder="Please describe:
+• Business industry
+• Products or services offered
+• Target customers
+• Problems you solve for customers"
+                      rows={8}
+                      className="resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The more detail you provide, the better we can tailor content for your audience
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </>
+          ) : (
+            // Has URL - Ask for analysis mode
+            <>
+              <CardHeader>
+                <CardTitle>Analysis Mode</CardTitle>
+                <CardDescription>
+                  Choose how to analyze your website for content generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup value={analysisMode} onValueChange={(v) => setAnalysisMode(v as AnalysisMode)}>
+                  <div className="space-y-4">
+                    <label
+                      htmlFor="mode-basic"
+                      className={cn(
+                        'flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all',
+                        analysisMode === 'basic' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <RadioGroupItem value="basic" id="mode-basic" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                            <Zap className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">Basic Analysis</h3>
+                            <p className="text-sm text-muted-foreground">Quick & automatic</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground pl-13">
+                          AI will automatically analyze your website to infer business type, 
+                          products/services, target audience, and value proposition.
+                        </p>
+                      </div>
+                    </label>
+
+                    <label
+                      htmlFor="mode-advanced"
+                      className={cn(
+                        'flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all',
+                        analysisMode === 'advanced' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <RadioGroupItem value="advanced" id="mode-advanced" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                            <Settings2 className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">Advanced Mode</h3>
+                            <p className="text-sm text-muted-foreground">Manual details</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground pl-13">
+                          Manually input product/service details, target market, and 
+                          value proposition for precise control over content generation.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </RadioGroup>
+
+                {/* Advanced mode fields */}
+                {analysisMode === 'advanced' && (
+                  <div className="mt-6 space-y-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="product">Product/Service</Label>
+                      <Input
+                        id="product"
+                        value={product}
+                        onChange={(e) => setProduct(e.target.value)}
+                        placeholder="What does your business offer?"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="targetMarket">Target Market</Label>
+                      <Input
+                        id="targetMarket"
+                        value={targetMarket}
+                        onChange={(e) => setTargetMarket(e.target.value)}
+                        placeholder="Who is your target audience?"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="valueProposition">Value Proposition</Label>
+                      <Textarea
+                        id="valueProposition"
+                        value={valueProposition}
+                        onChange={(e) => setValueProposition(e.target.value)}
+                        placeholder="What unique value do you provide?"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </>
+          )}
+        </Card>
+      )}
+
+      {/* Step 4: Language Selection */}
+      {step === 4 && (
         <Card className="animate-slide-up">
           <CardHeader>
             <div className="flex items-center gap-3 mb-2">
@@ -262,9 +428,9 @@ export default function NewProject() {
           Back
         </Button>
 
-        {step < 3 ? (
+        {step < 4 ? (
           <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
-            Next
+            {step === 2 && !hasWebsiteUrl ? 'Skip' : 'Next'}
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         ) : (
