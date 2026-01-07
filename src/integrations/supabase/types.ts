@@ -16,9 +16,12 @@ export type Database = {
     Tables: {
       articles: {
         Row: {
+          article_type: string | null
           content: string | null
           created_at: string
+          funnel_type: string | null
           id: string
+          persona_id: string | null
           project_id: string
           status: Database["public"]["Enums"]["article_status"]
           title: string
@@ -26,9 +29,12 @@ export type Database = {
           word_count: number | null
         }
         Insert: {
+          article_type?: string | null
           content?: string | null
           created_at?: string
+          funnel_type?: string | null
           id?: string
+          persona_id?: string | null
           project_id: string
           status?: Database["public"]["Enums"]["article_status"]
           title: string
@@ -36,9 +42,12 @@ export type Database = {
           word_count?: number | null
         }
         Update: {
+          article_type?: string | null
           content?: string | null
           created_at?: string
+          funnel_type?: string | null
           id?: string
+          persona_id?: string | null
           project_id?: string
           status?: Database["public"]["Enums"]["article_status"]
           title?: string
@@ -46,6 +55,13 @@ export type Database = {
           word_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "articles_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "articles_project_id_fkey"
             columns: ["project_id"]
@@ -102,6 +118,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      personas: {
+        Row: {
+          concerns: string | null
+          created_at: string
+          family_status: string | null
+          id: string
+          location: string | null
+          name: string
+          pain_points: string[] | null
+          project_id: string
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          concerns?: string | null
+          created_at?: string
+          family_status?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          pain_points?: string[] | null
+          project_id: string
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          concerns?: string | null
+          created_at?: string
+          family_status?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          pain_points?: string[] | null
+          project_id?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personas_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_shares: {
         Row: {
