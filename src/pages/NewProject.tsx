@@ -16,6 +16,16 @@ import { supabase } from '@/integrations/supabase/client';
 
 type AnalysisMode = 'basic' | 'advanced';
 
+type LoadingStep = 'idle' | 'scraping' | 'analyzing' | 'generating' | 'saving';
+
+const loadingStepMessages: Record<LoadingStep, { title: string; description: string }> = {
+  idle: { title: '', description: '' },
+  scraping: { title: 'Membaca Website', description: 'Mengekstrak konten dan informasi dari halaman website...' },
+  analyzing: { title: 'Menganalisis Bisnis', description: 'AI sedang memahami produk, layanan, dan target pasar...' },
+  generating: { title: 'Membuat Persona', description: 'Menghasilkan persona pelanggan berdasarkan analisis...' },
+  saving: { title: 'Menyimpan Project', description: 'Menyimpan data project dan persona...' },
+};
+
 export default function NewProject() {
   const navigate = useNavigate();
   const { createProject, addPersona } = useData();
@@ -28,6 +38,7 @@ export default function NewProject() {
   const [language, setLanguage] = useState<ProjectLanguage>('english');
   const [customLanguage, setCustomLanguage] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<LoadingStep>('idle');
   
   // Advanced mode fields
   const [product, setProduct] = useState('');
@@ -50,13 +61,19 @@ export default function NewProject() {
     }
 
     setIsCreating(true);
+    setLoadingStep(hasWebsiteUrl && analysisMode === 'basic' ? 'scraping' : 'analyzing');
     
     try {
       // Determine mode based on analysis mode selection
       const mode = hasWebsiteUrl && analysisMode === 'basic' ? 'auto' : 'advanced';
       
-      // Generate persona using AI
-      toast.info('Analyzing business and generating persona...');
+      // Simulate step progression for UX
+      if (hasWebsiteUrl && analysisMode === 'basic') {
+        setTimeout(() => setLoadingStep('analyzing'), 2000);
+        setTimeout(() => setLoadingStep('generating'), 5000);
+      } else {
+        setTimeout(() => setLoadingStep('generating'), 2000);
+      }
       
       const { data: personaData, error: personaError } = await supabase.functions.invoke('generate-persona', {
         body: {
@@ -80,6 +97,8 @@ export default function NewProject() {
       const generatedPersona = personaData?.persona;
       const businessInfo = personaData?.businessInfo;
 
+      setLoadingStep('saving');
+      
       // Create project with extracted business info
       const projectId = await createProject(
         projectName.trim(),
@@ -144,6 +163,7 @@ export default function NewProject() {
     }
     
     setIsCreating(false);
+    setLoadingStep('idle');
   };
 
   const canProceed = () => {
@@ -475,19 +495,82 @@ export default function NewProject() {
         </Card>
       )}
 
+      {/* Loading Overlay */}
+      {isCreating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <Card className="w-full max-w-md mx-4 animate-slide-up">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center text-center space-y-6">
+                {/* Animated Loading Icon */}
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                  <div className="absolute -inset-2 rounded-full border-2 border-primary/30 animate-pulse" />
+                </div>
+
+                {/* Loading Step Info */}
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {loadingStepMessages[loadingStep].title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-xs">
+                    {loadingStepMessages[loadingStep].description}
+                  </p>
+                </div>
+
+                {/* Progress Steps */}
+                <div className="flex items-center gap-2 w-full max-w-xs">
+                  {(['scraping', 'analyzing', 'generating', 'saving'] as LoadingStep[]).map((s, index) => {
+                    const stepOrder = ['scraping', 'analyzing', 'generating', 'saving'];
+                    const currentIndex = stepOrder.indexOf(loadingStep);
+                    const isActive = stepOrder.indexOf(s) === currentIndex;
+                    const isCompleted = stepOrder.indexOf(s) < currentIndex;
+                    const isVisible = hasWebsiteUrl && analysisMode === 'basic' ? true : s !== 'scraping';
+                    
+                    if (!isVisible) return null;
+                    
+                    return (
+                      <div key={s} className="flex-1 flex flex-col items-center gap-1">
+                        <div
+                          className={cn(
+                            'w-full h-1.5 rounded-full transition-all duration-500',
+                            isCompleted ? 'bg-primary' : isActive ? 'bg-primary/50 animate-pulse' : 'bg-muted'
+                          )}
+                        />
+                        <span className={cn(
+                          'text-[10px] capitalize transition-colors',
+                          isActive ? 'text-primary font-medium' : isCompleted ? 'text-primary/70' : 'text-muted-foreground'
+                        )}>
+                          {s === 'scraping' ? 'Scrape' : s === 'analyzing' ? 'Analisis' : s === 'generating' ? 'Persona' : 'Simpan'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Mohon tunggu, proses ini memerlukan waktu beberapa saat...
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between mt-6">
         <Button
           variant="ghost"
           onClick={() => setStep((s) => s - 1)}
-          disabled={step === 1}
+          disabled={step === 1 || isCreating}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
 
         {step < 4 ? (
-          <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
+          <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed() || isCreating}>
             {step === 2 && !hasWebsiteUrl ? 'Skip' : 'Next'}
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
