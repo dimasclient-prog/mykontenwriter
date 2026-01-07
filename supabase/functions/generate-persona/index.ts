@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getUserCredentials } from "../_shared/get-user-credentials.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,17 +19,211 @@ interface PersonaRequest {
   };
 }
 
+async function callOpenAI(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+  const modelMap: Record<string, string> = {
+    'gpt-5.2': 'gpt-5-2025-08-07',
+    'gpt-5': 'gpt-5-2025-08-07',
+    'gpt-5-mini': 'gpt-5-mini-2025-08-07',
+    'gpt-5-nano': 'gpt-5-nano-2025-08-07',
+    'gpt-4.1': 'gpt-4.1-2025-04-14',
+    'gpt-4.1-mini': 'gpt-4.1-mini-2025-04-14',
+    'gpt-4o': 'gpt-4o',
+    'gpt-4o-mini': 'gpt-4o-mini',
+    'o4': 'o4-mini-2025-04-16',
+    'o3': 'o3-2025-04-16',
+    'o3-mini': 'o3-mini',
+  };
+
+  const actualModel = modelMap[model] || 'gpt-4o-mini';
+  const isNewModel = ['gpt-5.2', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4.1-mini', 'o4', 'o3', 'o3-mini'].includes(model);
+
+  const body: Record<string, unknown> = {
+    model: actualModel,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+  };
+
+  if (isNewModel) {
+    body.max_completion_tokens = 4000;
+  } else {
+    body.max_tokens = 4000;
+    body.temperature = 0.7;
+  }
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI API error:', errorText);
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+async function callGemini(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+  const modelMap: Record<string, string> = {
+    'gemini-3-pro': 'gemini-2.5-pro',
+    'gemini-3-flash': 'gemini-2.5-flash',
+    'gemini-2.5-flash': 'gemini-2.5-flash',
+    'gemini-2.5-flash-lite': 'gemini-2.0-flash-lite',
+    'gemini-2.5-pro': 'gemini-2.5-pro',
+    'gemini-2.0-flash': 'gemini-2.0-flash',
+    'gemini-2.0-flash-lite': 'gemini-2.0-flash-lite',
+  };
+
+  const actualModel = modelMap[model] || 'gemini-2.0-flash';
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Gemini API error:', errorText);
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
+async function callDeepSeek(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+  const modelMap: Record<string, string> = {
+    'deepseek-v2': 'deepseek-chat',
+    'deepseek-v2.5': 'deepseek-chat',
+    'deepseek-r1': 'deepseek-reasoner',
+  };
+
+  const actualModel = modelMap[model] || 'deepseek-chat';
+
+  const response = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: actualModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 4000,
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('DeepSeek API error:', errorText);
+    throw new Error(`DeepSeek API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+async function callQwen(apiKey: string, model: string, systemPrompt: string, userPrompt: string) {
+  const modelMap: Record<string, string> = {
+    'qwen2.5-72b-instruct': 'qwen2.5-72b-instruct',
+    'qwen2.5-32b-instruct': 'qwen2.5-32b-instruct',
+    'qwen2.5-14b-instruct': 'qwen2.5-14b-instruct',
+  };
+
+  const actualModel = modelMap[model] || 'qwen2.5-72b-instruct';
+
+  const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: actualModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_tokens: 4000,
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Qwen API error:', errorText);
+    throw new Error(`Qwen API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+async function callLovableAI(systemPrompt: string, userPrompt: string) {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY is not configured");
+  }
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Rate limits exceeded, please try again later.");
+    }
+    if (response.status === 402) {
+      throw new Error("Payment required, please add credits.");
+    }
+    const errorText = await response.text();
+    console.error("Lovable AI error:", response.status, errorText);
+    throw new Error(`Lovable AI error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
     const { websiteUrl, businessContext, analysisMode, language, advancedData } = await req.json() as PersonaRequest;
 
     console.log(`Generating persona with mode: ${analysisMode}, language: ${language}`);
@@ -96,54 +291,51 @@ ${businessContext}
 Create a detailed persona that would be the ideal customer for this business.`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+    let result: string;
+    
+    // Try to use user's configured AI provider first
+    const authHeader = req.headers.get('Authorization');
+    let usedProvider = 'lovable-ai';
+    
+    try {
+      const { apiKey, provider, model } = await getUserCredentials(authHeader);
+      console.log(`Using user's ${provider}/${model} for persona generation`);
+      usedProvider = provider;
+      
+      switch (provider) {
+        case 'openai':
+          result = await callOpenAI(apiKey, model, systemPrompt, userPrompt);
+          break;
+        case 'gemini':
+          result = await callGemini(apiKey, model, systemPrompt, userPrompt);
+          break;
+        case 'deepseek':
+          result = await callDeepSeek(apiKey, model, systemPrompt, userPrompt);
+          break;
+        case 'qwen':
+          result = await callQwen(apiKey, model, systemPrompt, userPrompt);
+          break;
+        default:
+          throw new Error(`Unknown provider: ${provider}`);
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required, please add credits." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+    } catch (credError) {
+      // Fall back to Lovable AI if no user credentials or error
+      console.log('Falling back to Lovable AI:', credError instanceof Error ? credError.message : 'Unknown error');
+      result = await callLovableAI(systemPrompt, userPrompt);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
+    if (!result) {
       throw new Error("No content in AI response");
     }
 
-    console.log("Persona generated successfully");
+    console.log(`Persona generated successfully using ${usedProvider}`);
 
     // Parse the JSON response
-    let result;
+    let parsedResult;
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
+        parsedResult = JSON.parse(jsonMatch[0]);
       } else {
         throw new Error("No JSON found in response");
       }
@@ -152,7 +344,7 @@ Create a detailed persona that would be the ideal customer for this business.`;
       throw new Error("Failed to parse AI response as JSON");
     }
 
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify(parsedResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
