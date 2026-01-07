@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Lightbulb, Loader2 } from 'lucide-react';
+import { Lightbulb, Loader2, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Persona } from '@/types/project';
 
 export type ArticleType = 
   | 'pov'
@@ -47,8 +49,10 @@ interface TitleGeneratorModalProps {
     articleTypes: ArticleType[];
     articleCount: number;
     funnelType: FunnelType;
+    personaId: string;
   }) => void;
   isGenerating: boolean;
+  personas: Persona[];
 }
 
 export function TitleGeneratorModal({
@@ -56,10 +60,12 @@ export function TitleGeneratorModal({
   onOpenChange,
   onGenerate,
   isGenerating,
+  personas,
 }: TitleGeneratorModalProps) {
   const [selectedTypes, setSelectedTypes] = useState<ArticleType[]>([]);
   const [articleCount, setArticleCount] = useState(5);
   const [funnelType, setFunnelType] = useState<FunnelType>('tofu');
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('');
 
   const toggleArticleType = (type: ArticleType) => {
     setSelectedTypes((prev) =>
@@ -70,13 +76,14 @@ export function TitleGeneratorModal({
   };
 
   const handleGenerate = () => {
-    if (selectedTypes.length === 0) {
+    if (selectedTypes.length === 0 || !selectedPersonaId) {
       return;
     }
     onGenerate({
       articleTypes: selectedTypes,
       articleCount,
       funnelType,
+      personaId: selectedPersonaId,
     });
   };
 
@@ -84,7 +91,10 @@ export function TitleGeneratorModal({
     setSelectedTypes([]);
     setArticleCount(5);
     setFunnelType('tofu');
+    setSelectedPersonaId('');
   };
+
+  const selectedPersona = personas.find(p => p.id === selectedPersonaId);
 
   return (
     <Dialog open={open} onOpenChange={(open) => {
@@ -98,18 +108,74 @@ export function TitleGeneratorModal({
             Generate Article Ideas
           </DialogTitle>
           <DialogDescription>
-            Pilih tipe artikel, jumlah, dan funnel type untuk generate judul
+            Select a target persona, article types, and funnel stage
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Step 0: Persona Selection (MANDATORY) */}
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">
+              Target Persona <span className="text-destructive">*</span>
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Select which persona this content is for
+            </p>
+            {personas.length === 0 ? (
+              <div className="p-4 rounded-lg border border-dashed border-destructive/50 bg-destructive/5">
+                <p className="text-sm text-destructive">
+                  No personas available. Please create a persona in the Market Insight tab first.
+                </p>
+              </div>
+            ) : (
+              <Select value={selectedPersonaId} onValueChange={setSelectedPersonaId}>
+                <SelectTrigger className={!selectedPersonaId ? 'border-destructive/50' : ''}>
+                  <SelectValue placeholder="Select a persona..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {personas.map((persona) => (
+                    <SelectItem key={persona.id} value={persona.id}>
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                        <span>{persona.name}</span>
+                        {persona.role && (
+                          <span className="text-muted-foreground">({persona.role})</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedPersona && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="w-4 h-4 text-primary" />
+                  <span className="font-medium">{selectedPersona.name}</span>
+                </div>
+                {selectedPersona.role && (
+                  <p className="text-sm text-muted-foreground">{selectedPersona.role}</p>
+                )}
+                {selectedPersona.painPoints.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pain points: {selectedPersona.painPoints.slice(0, 2).join(', ')}
+                    {selectedPersona.painPoints.length > 2 && '...'}
+                  </p>
+                )}
+              </div>
+            )}
+            {!selectedPersonaId && personas.length > 0 && (
+              <p className="text-sm text-destructive">Please select a persona</p>
+            )}
+          </div>
+
           {/* Step 1: Article Types */}
           <div className="space-y-3">
             <Label className="text-base font-semibold">
-              Step 1: Pilih Tipe Artikel <span className="text-destructive">*</span>
+              Article Types <span className="text-destructive">*</span>
             </Label>
             <p className="text-sm text-muted-foreground">
-              Pilih satu atau lebih tipe artikel yang ingin di-generate
+              Select one or more article types to generate
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {ARTICLE_TYPES.map((type) => (
@@ -135,14 +201,14 @@ export function TitleGeneratorModal({
               ))}
             </div>
             {selectedTypes.length === 0 && (
-              <p className="text-sm text-destructive">Pilih minimal satu tipe artikel</p>
+              <p className="text-sm text-destructive">Select at least one article type</p>
             )}
           </div>
 
           {/* Step 2: Article Count */}
           <div className="space-y-3">
             <Label className="text-base font-semibold">
-              Step 2: Jumlah Artikel
+              Number of Articles
             </Label>
             <div className="flex items-center gap-3">
               <Input
@@ -153,14 +219,14 @@ export function TitleGeneratorModal({
                 onChange={(e) => setArticleCount(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
                 className="w-24"
               />
-              <span className="text-sm text-muted-foreground">judul artikel (1-50)</span>
+              <span className="text-sm text-muted-foreground">article titles (1-50)</span>
             </div>
           </div>
 
           {/* Step 3: Funnel Type */}
           <div className="space-y-3">
             <Label className="text-base font-semibold">
-              Step 3: Pilih Funnel Type
+              Funnel Stage
             </Label>
             <RadioGroup
               value={funnelType}
@@ -194,11 +260,11 @@ export function TitleGeneratorModal({
             onClick={() => onOpenChange(false)}
             disabled={isGenerating}
           >
-            Batal
+            Cancel
           </Button>
           <Button
             onClick={handleGenerate}
-            disabled={selectedTypes.length === 0 || isGenerating}
+            disabled={selectedTypes.length === 0 || !selectedPersonaId || isGenerating}
             className="gap-2"
           >
             {isGenerating ? (
@@ -206,7 +272,7 @@ export function TitleGeneratorModal({
             ) : (
               <Lightbulb className="w-4 h-4" />
             )}
-            {isGenerating ? 'Generating...' : `Generate ${articleCount} Judul`}
+            {isGenerating ? 'Generating...' : `Generate ${articleCount} Titles`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -26,7 +26,8 @@ import {
   Users,
   TrendingUp,
   Layers,
-  Share2
+  Share2,
+  User
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -41,7 +42,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Article, Project, ProjectLanguage, ProjectMode, StrategyPack } from '@/types/project';
+import { Article, Project, ProjectLanguage, ProjectMode, StrategyPack, Persona } from '@/types/project';
 import { supabase } from '@/integrations/supabase/client';
 import { ArticleEditor } from '@/components/ArticleEditor';
 import { KeywordsManager } from '@/components/KeywordsManager';
@@ -53,6 +54,9 @@ import { WordPressConnector } from '@/components/WordPressConnector';
 import { ArticleFilter, ArticleFilterType } from '@/components/ArticleFilter';
 import { ProviderSwitchModal } from '@/components/ProviderSwitchModal';
 import { AIProvider, AI_PROVIDER_NAMES, AI_MODELS } from '@/types/project';
+import { PersonaCard } from '@/components/PersonaCard';
+import { PersonaFormModal } from '@/components/PersonaFormModal';
+import { PersonaDetailModal } from '@/components/PersonaDetailModal';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -68,7 +72,9 @@ export default function ProjectDetail() {
     addArticle,
     deleteProject,
     setStrategyPack,
-    loading
+    loading,
+    addPersona,
+    deletePersona
   } = useData();
   
   const project = projects.find((p) => p.id === projectId);
@@ -98,6 +104,7 @@ export default function ProjectDetail() {
   
   // Article filter state
   const [articleFilter, setArticleFilter] = useState<ArticleFilterType>('all');
+  const [articlePersonaFilter, setArticlePersonaFilter] = useState<string | null>(null);
   const [isPublishingToWordPress, setIsPublishingToWordPress] = useState(false);
   
   // Inline title editing state
@@ -111,6 +118,11 @@ export default function ProjectDetail() {
   
   // Provider switch modal state
   const [showProviderSwitchModal, setShowProviderSwitchModal] = useState(false);
+  
+  // Persona modal states
+  const [showPersonaFormModal, setShowPersonaFormModal] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+  const [showPersonaDetailModal, setShowPersonaDetailModal] = useState(false);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -451,11 +463,13 @@ export default function ProjectDetail() {
     articleTypes: ArticleType[];
     articleCount: number;
     funnelType: FunnelType;
+    personaId: string;
   }) => {
     setIsGeneratingTitles(true);
 
     try {
       const existingTitles = project.articles.map((a) => a.title);
+      const selectedPersona = project.personas.find(p => p.id === config.personaId);
 
       const { data, error } = await supabase.functions.invoke('generate-titles', {
         body: {
@@ -468,8 +482,10 @@ export default function ProjectDetail() {
             keywords: project.keywords || [],
             topicClusters: project.strategyPack?.topicClusters,
             referenceText: project.referenceText,
-            personaSummary: project.strategyPack?.personaSummary,
-            corePainPoints: project.strategyPack?.corePainPoints,
+            personaSummary: selectedPersona 
+              ? `${selectedPersona.name} - ${selectedPersona.role || 'Target Customer'}. Pain points: ${selectedPersona.painPoints.join(', ')}`
+              : project.strategyPack?.personaSummary,
+            corePainPoints: selectedPersona?.painPoints || project.strategyPack?.corePainPoints,
             product: project.product,
             targetMarket: project.targetMarket,
             brandVoice: project.brandVoice || masterSettings.defaultBrandVoice,
@@ -486,9 +502,15 @@ export default function ProjectDetail() {
       }
 
       if (data?.titles && Array.isArray(data.titles)) {
-        // Add all generated titles as new articles
+        // Add all generated titles as new articles with persona, funnel, and article type tags
         for (const title of data.titles) {
-          await addArticle(project.id, title);
+          await addArticle(
+            project.id, 
+            title, 
+            config.personaId,
+            config.funnelType,
+            config.articleTypes[0] // Use first selected type as primary
+          );
         }
         toast.success(`Generated ${data.titles.length} article titles!`);
         setShowTitleGeneratorModal(false);
@@ -959,135 +981,65 @@ export default function ProjectDetail() {
           />
         </TabsContent>
 
-        {/* Market Insight Tab */}
+        {/* Market Insight Tab - Persona Management */}
         <TabsContent value="strategy" className="space-y-6">
-          {/* Generate/Regenerate Card */}
+          {/* Add Persona Card */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                    {project.strategyPack ? 'Regenerate Market Insight' : 'Generate Market Insight'}
+                    <Users className="w-5 h-5 text-primary" />
+                    Personas
                   </CardTitle>
                   <CardDescription>
-                    {project.strategyPack 
-                      ? 'Not satisfied with the results? Regenerate to get new insights'
-                      : (localProject.mode || project.mode) === 'auto' 
-                        ? 'Enter your website URL to analyze and generate market insights'
-                        : 'Fill in business details in Settings tab first, then generate insights'}
+                    Manage target personas for content generation
                   </CardDescription>
                 </div>
+                <Button onClick={() => setShowPersonaFormModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add Persona
+                </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {(localProject.mode || project.mode) === 'auto' && (
-                <div className="space-y-2">
-                  <Label htmlFor="websiteUrl">Website URL</Label>
-                  <Input
-                    id="websiteUrl"
-                    value={localProject.websiteUrl || ''}
-                    onChange={(e) => handleLocalChange('websiteUrl', e.target.value)}
-                    placeholder="https://example.com"
-                  />
-                </div>
-              )}
-              <Button 
-                className="gap-2"
-                onClick={handleGenerateStrategy}
-                disabled={isGeneratingStrategy}
-              >
-                {isGeneratingStrategy ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : project.strategyPack ? (
-                  <RefreshCw className="w-4 h-4" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                {isGeneratingStrategy ? 'Generating...' : project.strategyPack ? 'Regenerate' : 'Generate'}
-              </Button>
-            </CardContent>
           </Card>
 
-          {project.strategyPack && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" />
-                    Persona Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-foreground">{project.strategyPack.personaSummary}</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-primary" />
-                    Core Pain Points
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3">
-                    {project.strategyPack.corePainPoints.map((point, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <span className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary shrink-0">
-                          {i + 1}
-                        </span>
-                        <span className="pt-1">{point}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-primary" />
-                    Topic Clusters
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {project.strategyPack.topicClusters.map((cluster, i) => (
-                      <Badge key={i} variant="secondary" className="text-sm py-1 px-3">{cluster}</Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {project.strategyPack.tofuSearchIntent && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="w-5 h-5 text-primary" />
-                      Top-of-Funnel Search Intent
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-foreground">{project.strategyPack.tofuSearchIntent}</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {!project.strategyPack && (
+          {/* Persona Grid */}
+          {project.personas.length === 0 ? (
             <Card className="border-dashed border-2">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                  <TrendingUp className="w-8 h-8 text-primary" />
+                  <User className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">No Market Insight Yet</h3>
-                <p className="text-muted-foreground text-center max-w-md">
-                  Generate market insights to understand your target persona, pain points, and topic clusters for content creation.
+                <h3 className="text-xl font-semibold mb-2">No Personas Yet</h3>
+                <p className="text-muted-foreground text-center max-w-md mb-4">
+                  Add personas to represent your target customers for more relevant content generation.
                 </p>
+                <Button onClick={() => setShowPersonaFormModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add Your First Persona
+                </Button>
               </CardContent>
             </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {project.personas.map((persona) => (
+                <PersonaCard
+                  key={persona.id}
+                  persona={persona}
+                  onClick={() => {
+                    setSelectedPersona(persona);
+                    setShowPersonaDetailModal(true);
+                  }}
+                  onDelete={() => {
+                    if (confirm(`Delete persona "${persona.name}"?`)) {
+                      deletePersona(project.id, persona.id);
+                      toast.success('Persona deleted');
+                    }
+                  }}
+                />
+              ))}
+            </div>
           )}
         </TabsContent>
 
@@ -1612,6 +1564,7 @@ export default function ProjectDetail() {
         onOpenChange={setShowTitleGeneratorModal}
         onGenerate={handleGenerateTitles}
         isGenerating={isGeneratingTitles}
+        personas={project.personas}
       />
 
       {/* Title Generator Modal for Keyword Ideas */}
@@ -1626,6 +1579,7 @@ export default function ProjectDetail() {
 
           try {
             const existingTitles = project.articles.map((a) => a.title);
+            const selectedPersona = project.personas.find(p => p.id === config.personaId);
 
             const { data, error } = await supabase.functions.invoke('generate-titles', {
               body: {
@@ -1635,11 +1589,13 @@ export default function ProjectDetail() {
                 funnelType: config.funnelType,
                 projectData: {
                   language: getProjectLanguage(),
-                  keywords: keywordIdeasForArticles, // Use selected keyword ideas
+                  keywords: keywordIdeasForArticles,
                   topicClusters: project.strategyPack?.topicClusters,
                   referenceText: project.referenceText,
-                  personaSummary: project.strategyPack?.personaSummary,
-                  corePainPoints: project.strategyPack?.corePainPoints,
+                  personaSummary: selectedPersona 
+                    ? `${selectedPersona.name} - ${selectedPersona.role || 'Target Customer'}`
+                    : project.strategyPack?.personaSummary,
+                  corePainPoints: selectedPersona?.painPoints || project.strategyPack?.corePainPoints,
                   product: project.product,
                   targetMarket: project.targetMarket,
                   brandVoice: project.brandVoice || masterSettings.defaultBrandVoice,
@@ -1657,7 +1613,7 @@ export default function ProjectDetail() {
 
             if (data?.titles && Array.isArray(data.titles)) {
               for (const title of data.titles) {
-                await addArticle(project.id, title);
+                await addArticle(project.id, title, config.personaId, config.funnelType, config.articleTypes[0]);
               }
               toast.success(`Generated ${data.titles.length} article titles from keyword ideas!`);
               setShowKeywordArticleModal(false);
@@ -1673,6 +1629,7 @@ export default function ProjectDetail() {
           }
         }}
         isGenerating={isGeneratingTitles}
+        personas={project.personas}
       />
 
       {/* Project Share Modal */}
