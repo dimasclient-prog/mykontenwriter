@@ -1112,10 +1112,17 @@ export default function ProjectDetail() {
             value={articleFilter}
             onChange={setArticleFilter}
             counts={{
-              all: project.articles.length,
-              generated: project.articles.filter(a => a.status === 'completed').length,
-              ideas: project.articles.filter(a => a.status === 'todo').length,
+              all: project.articles.filter(a => !articlePersonaFilter || a.personaId === articlePersonaFilter).length,
+              generated: project.articles.filter(a => a.status === 'completed' && (!articlePersonaFilter || a.personaId === articlePersonaFilter)).length,
+              ideas: project.articles.filter(a => a.status === 'todo' && (!articlePersonaFilter || a.personaId === articlePersonaFilter)).length,
             }}
+            personas={project.personas}
+            selectedPersonaId={articlePersonaFilter}
+            onPersonaChange={setArticlePersonaFilter}
+            personaCounts={project.personas.reduce((acc, p) => {
+              acc[p.id] = project.articles.filter(a => a.personaId === p.id).length;
+              return acc;
+            }, {} as Record<string, number>)}
           />
 
           {/* WordPress Publish Section */}
@@ -1170,11 +1177,16 @@ export default function ProjectDetail() {
             ) : (
               project.articles
                 .filter(article => {
-                  if (articleFilter === 'generated') return article.status === 'completed';
-                  if (articleFilter === 'ideas') return article.status === 'todo';
+                  // Status filter
+                  if (articleFilter === 'generated' && article.status !== 'completed') return false;
+                  if (articleFilter === 'ideas' && article.status !== 'todo') return false;
+                  // Persona filter
+                  if (articlePersonaFilter && article.personaId !== articlePersonaFilter) return false;
                   return true;
                 })
-                .map((article) => (
+                .map((article) => {
+                  const articlePersona = project.personas.find(p => p.id === article.personaId);
+                  return (
                 <Card key={article.id} className={cn(
                   "group hover:border-primary/30 transition-colors",
                   selectedArticles.has(article.id) && "border-blue-500/50 bg-blue-500/5"
@@ -1234,6 +1246,13 @@ export default function ProjectDetail() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-7 md:ml-0">
+                        {/* Persona badge */}
+                        {articlePersona && (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <User className="w-3 h-3" />
+                            {articlePersona.name}
+                          </Badge>
+                        )}
                         {getStatusBadge(article.status)}
                         <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           {/* Edit title button */}
@@ -1284,7 +1303,8 @@ export default function ProjectDetail() {
                     </div>
                   </CardContent>
                 </Card>
-              ))
+                  );
+                })
             )}
           </div>
         </TabsContent>
@@ -1651,6 +1671,29 @@ export default function ProjectDetail() {
             defaultModel: AI_MODELS[provider][0],
           });
           toast.success(`Switched to ${AI_PROVIDER_NAMES[provider]}`);
+        }}
+      />
+
+      {/* Persona Form Modal */}
+      <PersonaFormModal
+        open={showPersonaFormModal}
+        onOpenChange={setShowPersonaFormModal}
+        onSubmit={async (data) => {
+          const persona = await addPersona(project.id, data);
+          if (persona) {
+            toast.success('Persona created successfully');
+            setShowPersonaFormModal(false);
+          }
+        }}
+      />
+
+      {/* Persona Detail Modal */}
+      <PersonaDetailModal
+        persona={selectedPersona}
+        open={showPersonaDetailModal}
+        onOpenChange={(open) => {
+          setShowPersonaDetailModal(open);
+          if (!open) setSelectedPersona(null);
         }}
       />
     </div>
