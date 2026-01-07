@@ -5,6 +5,7 @@ import {
   MasterSettings, 
   Project, 
   Article, 
+  Persona,
   StrategyPack,
   ProjectMode,
   ProjectLanguage,
@@ -73,7 +74,7 @@ export function useSupabaseData() {
     }
   }, [user]);
 
-  // Fetch projects with articles (including shared projects)
+  // Fetch projects with articles and personas (including shared projects)
   const fetchProjects = useCallback(async () => {
     if (!user) return;
 
@@ -126,15 +127,28 @@ export function useSupabaseData() {
       return;
     }
 
+    const projectIds = allProjectsData.map(p => p.id);
+
     // Fetch articles for all projects
     const { data: articlesData, error: articlesError } = await supabase
       .from('articles')
       .select('*')
-      .in('project_id', allProjectsData.map(p => p.id))
+      .in('project_id', projectIds)
       .order('created_at', { ascending: true });
 
     if (articlesError) {
       console.error('Error fetching articles:', articlesError);
+    }
+
+    // Fetch personas for all projects
+    const { data: personasData, error: personasError } = await supabase
+      .from('personas')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: true });
+
+    if (personasError) {
+      console.error('Error fetching personas:', personasError);
     }
 
     const articlesMap = new Map<string, Article[]>();
@@ -146,10 +160,31 @@ export function useSupabaseData() {
         content: article.content || undefined,
         status: article.status as Article['status'],
         wordCount: article.word_count || undefined,
+        personaId: article.persona_id || undefined,
+        funnelType: article.funnel_type || undefined,
+        articleType: article.article_type || undefined,
         createdAt: new Date(article.created_at),
         updatedAt: new Date(article.updated_at),
       });
       articlesMap.set(article.project_id, projectArticles);
+    });
+
+    const personasMap = new Map<string, Persona[]>();
+    (personasData || []).forEach((persona: any) => {
+      const projectPersonas = personasMap.get(persona.project_id) || [];
+      projectPersonas.push({
+        id: persona.id,
+        projectId: persona.project_id,
+        name: persona.name,
+        role: persona.role || undefined,
+        location: persona.location || undefined,
+        familyStatus: persona.family_status || undefined,
+        painPoints: persona.pain_points || [],
+        concerns: persona.concerns || undefined,
+        createdAt: new Date(persona.created_at),
+        updatedAt: new Date(persona.updated_at),
+      });
+      personasMap.set(persona.project_id, projectPersonas);
     });
 
     const mappedProjects: Project[] = allProjectsData.map(p => ({
@@ -180,6 +215,7 @@ export function useSupabaseData() {
       wordpressPassword: (p as Record<string, unknown>).wordpress_password ? '••••••••' : undefined,
       strategyPack: p.strategy_pack ? (p.strategy_pack as unknown as StrategyPack) : undefined,
       articles: articlesMap.get(p.id) || [],
+      personas: personasMap.get(p.id) || [],
       createdAt: new Date(p.created_at),
       updatedAt: new Date(p.updated_at),
     }));
@@ -266,7 +302,9 @@ export function useSupabaseData() {
     name: string, 
     mode: ProjectMode, 
     language: ProjectLanguage, 
-    customLanguage?: string
+    customLanguage?: string,
+    websiteUrl?: string,
+    businessContext?: string
   ): Promise<string | null> => {
     if (!user) return null;
 
@@ -278,6 +316,8 @@ export function useSupabaseData() {
         mode,
         language,
         custom_language: customLanguage,
+        website_url: websiteUrl,
+        business_context: businessContext,
       })
       .select()
       .single();
@@ -408,14 +448,22 @@ export function useSupabaseData() {
     await fetchProjects();
   };
 
-  // Add article
-  const addArticle = async (projectId: string, title: string) => {
+  const addArticle = async (
+    projectId: string, 
+    title: string, 
+    personaId?: string,
+    funnelType?: string,
+    articleType?: string
+  ) => {
     const { data, error } = await supabase
       .from('articles')
       .insert({
         project_id: projectId,
         title,
-        status: 'todo',
+        status: 'todo' as const,
+        persona_id: personaId || null,
+        funnel_type: funnelType || null,
+        article_type: articleType || null,
       })
       .select()
       .single();
@@ -433,6 +481,9 @@ export function useSupabaseData() {
               id: data.id,
               title: data.title,
               status: 'todo' as const,
+              personaId: data.persona_id || undefined,
+              funnelType: data.funnel_type || undefined,
+              articleType: data.article_type || undefined,
               createdAt: new Date(data.created_at),
               updatedAt: new Date(data.updated_at),
             }],
@@ -450,6 +501,9 @@ export function useSupabaseData() {
     if (updates.content !== undefined) dbUpdates.content = updates.content;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.wordCount !== undefined) dbUpdates.word_count = updates.wordCount;
+    if (updates.personaId !== undefined) dbUpdates.persona_id = updates.personaId;
+    if (updates.funnelType !== undefined) dbUpdates.funnel_type = updates.funnelType;
+    if (updates.articleType !== undefined) dbUpdates.article_type = updates.articleType;
 
     const { error } = await supabase
       .from('articles')
@@ -497,6 +551,83 @@ export function useSupabaseData() {
     ));
   };
 
+  // Add persona
+  const addPersona = async (projectId: string, personaData: {
+    name: string;
+    role?: string;
+    location?: string;
+    familyStatus?: string;
+    painPoints?: string[];
+    concerns?: string;
+  }): Promise<Persona | null> => {
+    const { data, error } = await supabase
+      .from('personas')
+      .insert({
+        project_id: projectId,
+        name: personaData.name,
+        role: personaData.role,
+        location: personaData.location,
+        family_status: personaData.familyStatus,
+        pain_points: personaData.painPoints || [],
+        concerns: personaData.concerns,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding persona:', error);
+      return null;
+    }
+
+    const newPersona: Persona = {
+      id: data.id,
+      projectId: data.project_id,
+      name: data.name,
+      role: data.role || undefined,
+      location: data.location || undefined,
+      familyStatus: data.family_status || undefined,
+      painPoints: data.pain_points || [],
+      concerns: data.concerns || undefined,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    };
+
+    setProjects(prev => prev.map(p => 
+      p.id === projectId 
+        ? { 
+            ...p, 
+            personas: [...p.personas, newPersona],
+            updatedAt: new Date() 
+          } 
+        : p
+    ));
+
+    return newPersona;
+  };
+
+  // Delete persona
+  const deletePersona = async (projectId: string, personaId: string) => {
+    const { error } = await supabase
+      .from('personas')
+      .delete()
+      .eq('id', personaId);
+
+    if (error) {
+      console.error('Error deleting persona:', error);
+      return;
+    }
+
+    setProjects(prev => prev.map(p => 
+      p.id === projectId 
+        ? { 
+            ...p, 
+            personas: p.personas.filter(persona => persona.id !== personaId),
+            updatedAt: new Date() 
+          } 
+        : p
+    ));
+  };
+
   // Get active project
   const getActiveProject = () => {
     return projects.find(p => p.id === activeProjectId) || null;
@@ -516,6 +647,8 @@ export function useSupabaseData() {
     addArticle,
     updateArticle,
     deleteArticle,
+    addPersona,
+    deletePersona,
     getActiveProject,
     refetch: fetchProjects,
   };

@@ -4,6 +4,8 @@ export type ProjectLanguage = 'indonesian' | 'english' | 'other';
 
 export type AIProvider = 'openai' | 'gemini' | 'deepseek' | 'qwen';
 
+export type AnalysisMode = 'basic' | 'advanced';
+
 export const AI_MODELS: Record<AIProvider, string[]> = {
   openai: ['gpt-5.2', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'o4', 'o3', 'o3-mini'],
   gemini: ['gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'],
@@ -27,6 +29,19 @@ export interface MasterSettings {
   defaultModel: string;
   defaultArticleLength: number;
   defaultBrandVoice: string;
+}
+
+export interface Persona {
+  id: string;
+  projectId: string;
+  name: string;
+  role?: string;
+  location?: string;
+  familyStatus?: string;
+  painPoints: string[];
+  concerns?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ProjectSettings {
@@ -73,6 +88,9 @@ export interface Article {
   content?: string;
   status: 'todo' | 'in-progress' | 'completed';
   wordCount?: number;
+  personaId?: string;
+  funnelType?: string;
+  articleType?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -80,4 +98,5 @@ export interface Article {
 export interface Project extends ProjectSettings {
   strategyPack?: StrategyPack;
   articles: Article[];
+  personas: Persona[];
 }
