@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Trash2, Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -48,10 +48,7 @@ export function ReferenceFileUpload({
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('project-files')
-        .getPublicUrl(filePath);
-
+      // Store only the file path - we'll generate signed URLs when viewing
       onReferenceFileChange(filePath);
       setFileName(file.name);
       toast.success('Reference file uploaded successfully');
@@ -85,13 +82,30 @@ export function ReferenceFileUpload({
     }
   };
 
-  const getFileDownloadUrl = () => {
-    if (!referenceFileUrl) return null;
-    const { data } = supabase.storage
-      .from('project-files')
-      .getPublicUrl(referenceFileUrl);
-    return data.publicUrl;
-  };
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  
+  // Generate signed URL for private bucket access
+  useEffect(() => {
+    const refreshSignedUrl = async () => {
+      if (!referenceFileUrl) {
+        setSignedUrl(null);
+        return;
+      }
+      try {
+        const { data, error } = await supabase.storage
+          .from('project-files')
+          .createSignedUrl(referenceFileUrl, 3600); // 1 hour expiry
+        
+        if (error) throw error;
+        setSignedUrl(data.signedUrl);
+      } catch (error) {
+        console.error('Failed to generate signed URL:', error);
+        setSignedUrl(null);
+      }
+    };
+    
+    refreshSignedUrl();
+  }, [referenceFileUrl]);
 
   return (
     <Card>
@@ -126,13 +140,13 @@ export function ReferenceFileUpload({
                 <p className="text-sm text-muted-foreground">File uploaded</p>
               </div>
               <div className="flex items-center gap-2">
-                {getFileDownloadUrl() && (
+                {signedUrl && (
                   <Button
                     variant="outline"
                     size="sm"
                     asChild
                   >
-                    <a href={getFileDownloadUrl()!} target="_blank" rel="noopener noreferrer">
+                    <a href={signedUrl} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-4 h-4 mr-1" />
                       View
                     </a>
