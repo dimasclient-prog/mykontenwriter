@@ -270,6 +270,10 @@ export type Database = {
           default_model: string
         }[]
       }
+      get_wordpress_password: {
+        Args: { p_project_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

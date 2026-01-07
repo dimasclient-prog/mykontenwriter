@@ -174,10 +174,10 @@ export function useSupabaseData() {
       businessEmail: (p as Record<string, unknown>).business_email as string || undefined,
       referenceText: (p as Record<string, unknown>).reference_text as string || undefined,
       referenceFileUrl: (p as Record<string, unknown>).reference_file_url as string || undefined,
-      // WordPress integration
+      // WordPress integration - mask password if exists (never expose encrypted value to client)
       wordpressUrl: (p as Record<string, unknown>).wordpress_url as string || undefined,
       wordpressUsername: (p as Record<string, unknown>).wordpress_username as string || undefined,
-      wordpressPassword: (p as Record<string, unknown>).wordpress_password as string || undefined,
+      wordpressPassword: (p as Record<string, unknown>).wordpress_password ? '••••••••' : undefined,
       strategyPack: p.strategy_pack ? (p.strategy_pack as unknown as StrategyPack) : undefined,
       articles: articlesMap.get(p.id) || [],
       createdAt: new Date(p.created_at),
@@ -319,7 +319,28 @@ export function useSupabaseData() {
     // WordPress integration
     if (updates.wordpressUrl !== undefined) dbUpdates.wordpress_url = updates.wordpressUrl;
     if (updates.wordpressUsername !== undefined) dbUpdates.wordpress_username = updates.wordpressUsername;
-    if (updates.wordpressPassword !== undefined) dbUpdates.wordpress_password = updates.wordpressPassword;
+    
+    // Encrypt WordPress password before storing (if it's a new password, not masked)
+    if (updates.wordpressPassword !== undefined) {
+      if (updates.wordpressPassword && !updates.wordpressPassword.startsWith('••••')) {
+        // Encrypt the password using the same function as API keys
+        const { data: encryptedData, error: encryptError } = await supabase.rpc('encrypt_api_key', {
+          plain_key: updates.wordpressPassword
+        });
+        
+        if (encryptError) {
+          console.error('Error encrypting WordPress password:', encryptError);
+          // Still save but log error
+          dbUpdates.wordpress_password = updates.wordpressPassword;
+        } else {
+          dbUpdates.wordpress_password = encryptedData;
+        }
+      } else if (!updates.wordpressPassword) {
+        // Clear password if empty
+        dbUpdates.wordpress_password = '';
+      }
+      // If password starts with •••• it's a masked value, don't update
+    }
 
     const { error } = await supabase
       .from('projects')

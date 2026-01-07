@@ -531,9 +531,9 @@ export default function ProjectDetail() {
       try {
         const { data, error } = await supabase.functions.invoke('publish-to-wordpress', {
           body: {
+            projectId: project.id,
             wordpressUrl: wpUrl,
             username: wpUsername,
-            password: wpPassword,
             title: article.title,
             content: article.content,
             status: 'draft',
@@ -1583,6 +1583,7 @@ export default function ProjectDetail() {
       {editingArticle && (
         <ArticleEditor
           article={editingArticle}
+          projectId={project.id}
           open={!!editingArticle}
           onClose={() => setEditingArticle(null)}
           onSave={handleSaveArticleContent}
@@ -1598,7 +1599,7 @@ export default function ProjectDetail() {
               ? {
                   url: localProject.wordpressUrl || project.wordpressUrl || '',
                   username: localProject.wordpressUsername || project.wordpressUsername || '',
-                  password: localProject.wordpressPassword || project.wordpressPassword || '',
+                  isConfigured: true,
                 }
               : null
           }

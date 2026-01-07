@@ -40,34 +40,39 @@ export function WordPressConnector({
     setConnectionError('');
 
     try {
-      const { data, error } = await supabase.functions.invoke('publish-to-wordpress', {
-        body: {
-          wordpressUrl,
-          username: wordpressUsername,
-          password: wordpressPassword,
-          // Use a test call - we'll create a test that just validates credentials
-          title: '__connection_test__',
-          content: '__test__',
-          status: 'draft',
+      // For testing, we need to use direct WordPress API call since password isn't saved yet
+      // Normalize WordPress URL
+      let apiUrl = wordpressUrl.replace(/\/$/, '');
+      if (!apiUrl.includes('/wp-json/wp/v2')) {
+        apiUrl = `${apiUrl}/wp-json/wp/v2`;
+      }
+
+      // Test with a simple users/me call to validate credentials
+      const authHeader = btoa(`${wordpressUsername}:${wordpressPassword}`);
+      const testResponse = await fetch(`${apiUrl}/users/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${authHeader}`,
         },
       });
 
-      if (error) {
-        console.error('WordPress connection error:', error);
+      if (!testResponse.ok) {
+        const errorText = await testResponse.text();
+        console.error('WordPress connection error:', errorText);
         setConnectionStatus('failed');
-        setConnectionError(error.message || 'Connection failed');
+        setConnectionError(testResponse.status === 401 ? 'Invalid credentials' : `Error: ${testResponse.status}`);
         toast.error('WordPress connection failed');
         return;
       }
 
-      if (data?.success) {
-        // Delete the test post
+      const userData = await testResponse.json();
+      if (userData?.id) {
         setConnectionStatus('connected');
         toast.success('WordPress connected successfully!');
-      } else if (data?.error) {
+      } else {
         setConnectionStatus('failed');
-        setConnectionError(data.error);
-        toast.error(`WordPress connection failed: ${data.error}`);
+        setConnectionError('Could not verify credentials');
+        toast.error('WordPress connection failed');
       }
     } catch (err: any) {
       console.error('WordPress connection error:', err);

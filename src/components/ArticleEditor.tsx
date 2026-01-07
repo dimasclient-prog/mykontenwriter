@@ -19,6 +19,7 @@ import LinkExtension from '@tiptap/extension-link';
 
 interface ArticleEditorProps {
   article: Article;
+  projectId: string;
   open: boolean;
   onClose: () => void;
   onSave: (content: string) => void;
@@ -26,13 +27,13 @@ interface ArticleEditorProps {
   wordpressConfig?: {
     url: string;
     username: string;
-    password: string;
+    isConfigured: boolean;
   } | null;
 }
 
 type PublishStatus = 'idle' | 'publishing' | 'success' | 'error';
 
-export function ArticleEditor({ article, open, onClose, onSave, onTitleChange, wordpressConfig }: ArticleEditorProps) {
+export function ArticleEditor({ article, projectId, open, onClose, onSave, onTitleChange, wordpressConfig }: ArticleEditorProps) {
   const [content, setContent] = useState(article.content || '');
   const [isDirty, setIsDirty] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -142,9 +143,9 @@ export function ArticleEditor({ article, open, onClose, onSave, onTitleChange, w
     try {
       const { data, error } = await supabase.functions.invoke('publish-to-wordpress', {
         body: {
+          projectId,
           wordpressUrl: wordpressConfig.url,
           username: wordpressConfig.username,
-          password: wordpressConfig.password,
           title: article.title,
           content: activeTab === 'visual' && editor ? editor.getHTML() : content,
           status: 'draft',
