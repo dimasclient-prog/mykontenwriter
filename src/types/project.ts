@@ -91,6 +91,7 @@ export interface Article {
   personaId?: string;
   funnelType?: string;
   articleType?: string;
+  usedKeywords?: string[];
   createdAt: Date;
   updatedAt: Date;
 }

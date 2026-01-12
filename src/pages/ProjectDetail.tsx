@@ -364,10 +364,13 @@ export default function ProjectDetail() {
       }
 
       if (data?.content) {
+        // Get the article to retrieve its usedKeywords if any were set during title generation
+        const article = project.articles.find(a => a.id === articleId);
         await updateArticle(project.id, articleId, {
           status: 'completed',
           content: data.content,
           wordCount: data.wordCount,
+          usedKeywords: article?.usedKeywords || project.keywords || [],
         });
         toast.success('Article generated successfully!');
       } else if (data?.error) {
@@ -504,14 +507,15 @@ export default function ProjectDetail() {
       }
 
       if (data?.titles && Array.isArray(data.titles)) {
-        // Add all generated titles as new articles with persona, funnel, and article type tags
+        // Add all generated titles as new articles with persona, funnel, article type, and used keywords
         for (const title of data.titles) {
           await addArticle(
             project.id, 
             title, 
             config.personaId,
             config.funnelType,
-            config.articleTypes[0] // Use first selected type as primary
+            config.articleTypes[0], // Use first selected type as primary
+            config.selectedKeywords // Store the keywords used for this article
           );
         }
         toast.success(`Generated ${data.titles.length} article titles!`);
@@ -1247,7 +1251,29 @@ export default function ProjectDetail() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-7 md:ml-0">
+                      <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-7 md:ml-0 flex-wrap">
+                        {/* Used Keywords badges - show first 2 keywords */}
+                        {article.usedKeywords && article.usedKeywords.length > 0 && (
+                          <div className="hidden sm:flex items-center gap-1">
+                            {article.usedKeywords.slice(0, 2).map((keyword, idx) => (
+                              <Badge 
+                                key={idx} 
+                                variant="outline" 
+                                className={idx === 0 
+                                  ? "text-xs bg-blue-500/20 text-blue-600 border-blue-500/30 font-bold" 
+                                  : "text-xs bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                }
+                              >
+                                {keyword}
+                              </Badge>
+                            ))}
+                            {article.usedKeywords.length > 2 && (
+                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                                +{article.usedKeywords.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                         {/* Persona badge */}
                         {articlePersona && (
                           <Badge variant="outline" className="text-xs gap-1">
@@ -1577,6 +1603,7 @@ export default function ProjectDetail() {
                 }
               : null
           }
+          projectKeywords={project.keywords || []}
         />
       )}
 
@@ -1636,8 +1663,9 @@ export default function ProjectDetail() {
             }
 
             if (data?.titles && Array.isArray(data.titles)) {
+              const usedKeywords = config.selectedKeywords.length > 0 ? config.selectedKeywords : keywordIdeasForArticles;
               for (const title of data.titles) {
-                await addArticle(project.id, title, config.personaId, config.funnelType, config.articleTypes[0]);
+                await addArticle(project.id, title, config.personaId, config.funnelType, config.articleTypes[0], usedKeywords);
               }
               toast.success(`Generated ${data.titles.length} article titles from keyword ideas!`);
               setShowKeywordArticleModal(false);

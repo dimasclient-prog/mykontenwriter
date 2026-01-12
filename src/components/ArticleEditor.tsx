@@ -29,11 +29,12 @@ interface ArticleEditorProps {
     username: string;
     isConfigured: boolean;
   } | null;
+  projectKeywords?: string[];
 }
 
 type PublishStatus = 'idle' | 'publishing' | 'success' | 'error';
 
-export function ArticleEditor({ article, projectId, open, onClose, onSave, onTitleChange, wordpressConfig }: ArticleEditorProps) {
+export function ArticleEditor({ article, projectId, open, onClose, onSave, onTitleChange, wordpressConfig, projectKeywords }: ArticleEditorProps) {
   const [content, setContent] = useState(article.content || '');
   const [isDirty, setIsDirty] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -268,6 +269,25 @@ export function ArticleEditor({ article, projectId, open, onClose, onSave, onTit
             </div>
           </div>
         </DialogHeader>
+
+        {/* Used Keywords Display */}
+        {article.usedKeywords && article.usedKeywords.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 py-2 px-1 bg-muted/30 rounded-lg">
+            <span className="text-sm font-medium text-muted-foreground">Keywords:</span>
+            {article.usedKeywords.map((keyword, index) => (
+              <Badge 
+                key={index} 
+                variant="outline" 
+                className={index === 0 
+                  ? "bg-blue-500/20 text-blue-600 border-blue-500/30 font-bold" 
+                  : "bg-blue-500/10 text-blue-500 border-blue-500/20 font-semibold"
+                }
+              >
+                {keyword}
+              </Badge>
+            ))}
+          </div>
+        )}
 
         {/* Publish Status Feedback */}
         {publishStatus === 'success' && (

@@ -25,7 +25,8 @@ interface DataContextType {
     title: string, 
     personaId?: string,
     funnelType?: string,
-    articleType?: string
+    articleType?: string,
+    usedKeywords?: string[]
   ) => Promise<void>;
   updateArticle: (projectId: string, articleId: string, updates: Partial<Article>) => Promise<void>;
   deleteArticle: (projectId: string, articleId: string) => Promise<void>;
