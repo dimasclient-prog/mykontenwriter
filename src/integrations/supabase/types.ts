@@ -26,6 +26,7 @@ export type Database = {
           status: Database["public"]["Enums"]["article_status"]
           title: string
           updated_at: string
+          used_keywords: string[] | null
           word_count: number | null
         }
         Insert: {
@@ -39,6 +40,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["article_status"]
           title: string
           updated_at?: string
+          used_keywords?: string[] | null
           word_count?: number | null
         }
         Update: {
@@ -52,6 +54,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["article_status"]
           title?: string
           updated_at?: string
+          used_keywords?: string[] | null
           word_count?: number | null
         }
         Relationships: [

@@ -154,6 +154,7 @@ export function useSupabaseData() {
     const articlesMap = new Map<string, Article[]>();
     (articlesData || []).forEach(article => {
       const projectArticles = articlesMap.get(article.project_id) || [];
+      const articleRecord = article as Record<string, unknown>;
       projectArticles.push({
         id: article.id,
         title: article.title,
@@ -163,6 +164,7 @@ export function useSupabaseData() {
         personaId: article.persona_id || undefined,
         funnelType: article.funnel_type || undefined,
         articleType: article.article_type || undefined,
+        usedKeywords: (articleRecord.used_keywords as string[]) || undefined,
         createdAt: new Date(article.created_at),
         updatedAt: new Date(article.updated_at),
       });
@@ -453,7 +455,8 @@ export function useSupabaseData() {
     title: string, 
     personaId?: string,
     funnelType?: string,
-    articleType?: string
+    articleType?: string,
+    usedKeywords?: string[]
   ) => {
     const { data, error } = await supabase
       .from('articles')
@@ -464,6 +467,7 @@ export function useSupabaseData() {
         persona_id: personaId || null,
         funnel_type: funnelType || null,
         article_type: articleType || null,
+        used_keywords: usedKeywords || [],
       })
       .select()
       .single();
@@ -473,6 +477,7 @@ export function useSupabaseData() {
       return;
     }
 
+    const articleRecord = data as Record<string, unknown>;
     setProjects(prev => prev.map(p => 
       p.id === projectId 
         ? { 
@@ -484,6 +489,7 @@ export function useSupabaseData() {
               personaId: data.persona_id || undefined,
               funnelType: data.funnel_type || undefined,
               articleType: data.article_type || undefined,
+              usedKeywords: (articleRecord.used_keywords as string[]) || undefined,
               createdAt: new Date(data.created_at),
               updatedAt: new Date(data.updated_at),
             }],
@@ -504,6 +510,7 @@ export function useSupabaseData() {
     if (updates.personaId !== undefined) dbUpdates.persona_id = updates.personaId;
     if (updates.funnelType !== undefined) dbUpdates.funnel_type = updates.funnelType;
     if (updates.articleType !== undefined) dbUpdates.article_type = updates.articleType;
+    if (updates.usedKeywords !== undefined) dbUpdates.used_keywords = updates.usedKeywords;
 
     const { error } = await supabase
       .from('articles')
