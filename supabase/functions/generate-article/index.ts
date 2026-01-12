@@ -9,6 +9,7 @@ const corsHeaders = {
 
 interface ArticleRequest {
   articleTitle: string;
+  selectedKeywords?: string[]; // Keywords selected for this specific article
   projectData: {
     language: string;
     brandVoice: string;
@@ -244,19 +245,36 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const { apiKey, provider, model } = await getUserCredentials(authHeader);
 
-    const { articleTitle, projectData } = await req.json() as ArticleRequest;
+    const { articleTitle, selectedKeywords, projectData } = await req.json() as ArticleRequest;
 
     console.log(`Generating article "${articleTitle}" using ${provider}/${model}`);
+    console.log(`Selected keywords: ${selectedKeywords?.join(', ') || 'using project keywords'}`);
 
     const languageInstruction = projectData.language;
 
     // Increase target word count by 20%
     const adjustedWordCount = Math.round(projectData.targetWordCount * 1.2);
 
-    // Build keywords instruction if available
-    const keywordsInstruction = projectData.keywords && projectData.keywords.length > 0
-      ? `\nTARGET KEYWORDS (incorporate naturally throughout the article):
-${projectData.keywords.join(', ')}`
+    // Build keywords instruction - prioritize selected keywords, fallback to project keywords
+    const effectiveKeywords = selectedKeywords && selectedKeywords.length > 0 
+      ? selectedKeywords 
+      : projectData.keywords;
+    
+    const keywordsInstruction = effectiveKeywords && effectiveKeywords.length > 0
+      ? `\nTARGET KEYWORDS (MUST be incorporated throughout the article):
+${effectiveKeywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')}
+
+KEYWORD DISTRIBUTION RULES:
+- Use each keyword and its semantic variations naturally throughout the article
+- Include keywords in H2 and H3 headings where appropriate
+- Distribute keywords evenly - don't cluster them in one section
+- Generate and use SEMANTIC VARIATIONS of each keyword:
+  * Synonyms and related terms
+  * Long-tail variations
+  * Question-based variations for FAQ section
+- Keyword density: aim for 1-2% (natural usage, not stuffed)
+- Primary keywords should appear in the first paragraph
+`
       : '';
 
     // Build business details for soft CTA

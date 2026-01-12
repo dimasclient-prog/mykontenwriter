@@ -26,6 +26,7 @@ interface TitlesRequest {
   existingTitles: string[];
   articleTypes?: ArticleType[];
   funnelType?: FunnelType;
+  selectedKeywords?: string[]; // Keywords selected by user for this generation
   projectData: {
     language: string;
     keywords?: string[];
@@ -231,11 +232,12 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const { apiKey, provider, model } = await getUserCredentials(authHeader);
 
-    const { count, existingTitles, articleTypes, funnelType, projectData } = await req.json() as TitlesRequest;
+    const { count, existingTitles, articleTypes, funnelType, selectedKeywords, projectData } = await req.json() as TitlesRequest;
 
     console.log(`Generating ${count} article titles using ${provider}/${model}`);
     console.log(`Article types: ${articleTypes?.join(', ') || 'default'}`);
     console.log(`Funnel type: ${funnelType || 'tofu'}`);
+    console.log(`Selected keywords: ${selectedKeywords?.join(', ') || 'none'}`);
 
     const languageInstruction = projectData.language.charAt(0).toUpperCase() + projectData.language.slice(1);
 
@@ -250,11 +252,31 @@ serve(async (req) => {
     const selectedFunnel = funnelType || 'tofu';
     const funnelInfo = `\nFUNNEL TYPE:\n${FUNNEL_TYPE_DESCRIPTIONS[selectedFunnel]}\n`;
 
+    // Build PRIMARY KEYWORDS instruction from user-selected keywords
+    let selectedKeywordsInfo = '';
+    if (selectedKeywords && selectedKeywords.length > 0) {
+      selectedKeywordsInfo = `
+CRITICAL - PRIMARY KEYWORDS (MUST be used as main topics for titles):
+${selectedKeywords.map((k, i) => `${i + 1}. "${k}"`).join('\n')}
+
+KEYWORD USAGE RULES:
+- Each title MUST incorporate at least one of these primary keywords
+- Use the exact keyword or its semantic variation (synonyms, related terms, LSI keywords)
+- Distribute keywords evenly across all generated titles
+- Generate SEMANTIC VARIATIONS of each keyword to use in headings:
+  - Synonyms (e.g., "smartphone" -> "mobile phone", "handphone")
+  - Related terms (e.g., "SEO" -> "search optimization", "ranking")
+  - Long-tail variations (e.g., "coffee" -> "best coffee for morning", "arabica coffee beans")
+  - Question forms (e.g., "weight loss" -> "how to lose weight", "why can't I lose weight")
+`;
+    }
+
     // Build context from various sources
     let contextInfo = '';
     
-    if (projectData.keywords && projectData.keywords.length > 0) {
-      contextInfo += `\nPRIMARY KEYWORDS (MUST be used as main topics):\n${projectData.keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}\n`;
+    // Only use project keywords if no specific keywords were selected
+    if ((!selectedKeywords || selectedKeywords.length === 0) && projectData.keywords && projectData.keywords.length > 0) {
+      contextInfo += `\nPRIMARY KEYWORDS (incorporate naturally):\n${projectData.keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}\n`;
     }
 
     if (projectData.topicClusters && projectData.topicClusters.length > 0) {
@@ -301,13 +323,18 @@ ALL OUTPUT MUST BE IN ${languageInstruction.toUpperCase()} LANGUAGE.
 
 You must respond with a valid JSON object containing:
 {
-  "titles": ["title 1", "title 2", "title 3", ...]
+  "titles": ["title 1", "title 2", "title 3", ...],
+  "keywordVariations": {
+    "keyword1": ["variation1", "variation2", ...],
+    "keyword2": ["variation1", "variation2", ...]
+  }
 }
 
 TITLE GENERATION RULES:
 - Generate EXACTLY ${count} unique article titles
 - Titles MUST reflect the selected ARTICLE TYPES
 - Titles MUST match the selected FUNNEL TYPE intent
+${selectedKeywords && selectedKeywords.length > 0 ? '- Titles MUST incorporate the PRIMARY KEYWORDS or their semantic variations' : ''}
 - Titles must be SEO-friendly and search-intent optimized
 - Each title must be different from existing titles (not similar in meaning or phrasing)
 - Use the provided keywords, topics, and reference context as inspiration
@@ -319,6 +346,7 @@ TITLE GENERATION RULES:
 - NO numbering, NO bullet symbols in titles`;
 
     const userPrompt = `Generate EXACTLY ${count} unique SEO article titles based on this configuration:
+${selectedKeywordsInfo}
 ${articleTypesInfo}
 ${funnelInfo}
 
@@ -330,8 +358,10 @@ IMPORTANT REMINDERS:
 - All titles MUST be in ${languageInstruction} language
 - Each title MUST clearly reflect at least one of the selected article types
 - Each title MUST match the ${selectedFunnel.toUpperCase()} funnel intent
+${selectedKeywords && selectedKeywords.length > 0 ? '- Each title MUST use at least one PRIMARY KEYWORD or its semantic variation' : ''}
 - Titles must NOT be similar to any existing titles
-- Generate EXACTLY ${count} titles, no more, no less`;
+- Generate EXACTLY ${count} titles, no more, no less
+${selectedKeywords && selectedKeywords.length > 0 ? '- Also generate semantic variations for each primary keyword in the keywordVariations object' : ''}`;
 
     let result: string;
     switch (provider) {

@@ -464,6 +464,7 @@ export default function ProjectDetail() {
     articleCount: number;
     funnelType: FunnelType;
     personaId: string;
+    selectedKeywords: string[];
   }) => {
     setIsGeneratingTitles(true);
 
@@ -477,6 +478,7 @@ export default function ProjectDetail() {
           existingTitles,
           articleTypes: config.articleTypes,
           funnelType: config.funnelType,
+          selectedKeywords: config.selectedKeywords,
           projectData: {
             language: getProjectLanguage(),
             keywords: project.keywords || [],
@@ -1585,6 +1587,7 @@ export default function ProjectDetail() {
         onGenerate={handleGenerateTitles}
         isGenerating={isGeneratingTitles}
         personas={project.personas}
+        projectKeywords={project.keywords || []}
       />
 
       {/* Title Generator Modal for Keyword Ideas */}
@@ -1607,6 +1610,7 @@ export default function ProjectDetail() {
                 existingTitles,
                 articleTypes: config.articleTypes,
                 funnelType: config.funnelType,
+                selectedKeywords: config.selectedKeywords.length > 0 ? config.selectedKeywords : keywordIdeasForArticles,
                 projectData: {
                   language: getProjectLanguage(),
                   keywords: keywordIdeasForArticles,
@@ -1650,6 +1654,7 @@ export default function ProjectDetail() {
         }}
         isGenerating={isGeneratingTitles}
         personas={project.personas}
+        projectKeywords={project.keywords || []}
       />
 
       {/* Project Share Modal */}
