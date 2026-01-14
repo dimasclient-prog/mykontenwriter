@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, Code, Save, Send, Loader2, ExternalLink, AlertCircle, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Heading1, Heading2, Heading3, Link as LinkIcon, Undo, Redo, Pencil, Check, X } from 'lucide-react';
+import { Eye, Code, Save, Send, Loader2, ExternalLink, AlertCircle, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Heading1, Heading2, Heading3, Link as LinkIcon, Undo, Redo, Pencil, Check, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,8 @@ interface ArticleEditorProps {
   onClose: () => void;
   onSave: (content: string) => void;
   onTitleChange?: (title: string) => void;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
   wordpressConfig?: {
     url: string;
     username: string;
@@ -34,7 +36,7 @@ interface ArticleEditorProps {
 
 type PublishStatus = 'idle' | 'publishing' | 'success' | 'error';
 
-export function ArticleEditor({ article, projectId, open, onClose, onSave, onTitleChange, wordpressConfig, projectKeywords }: ArticleEditorProps) {
+export function ArticleEditor({ article, projectId, open, onClose, onSave, onTitleChange, onRegenerate, isRegenerating, wordpressConfig, projectKeywords }: ArticleEditorProps) {
   const [content, setContent] = useState(article.content || '');
   const [isDirty, setIsDirty] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -252,6 +254,23 @@ export function ArticleEditor({ article, projectId, open, onClose, onSave, onTit
                 <Save className="w-4 h-4" />
                 Save
               </Button>
+              {onRegenerate && (
+                <Button 
+                  onClick={onRegenerate} 
+                  disabled={isRegenerating}
+                  size="sm" 
+                  variant="outline"
+                  className="gap-2"
+                  title="Regenerate article content"
+                >
+                  {isRegenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Regenerate
+                </Button>
+              )}
               <Button 
                 onClick={handlePublishToWordPress} 
                 disabled={publishStatus === 'publishing' || !content}

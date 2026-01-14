@@ -635,6 +635,64 @@ export function useSupabaseData() {
     ));
   };
 
+  // Update persona
+  const updatePersona = async (projectId: string, personaId: string, updates: {
+    name?: string;
+    role?: string;
+    location?: string;
+    familyStatus?: string;
+    painPoints?: string[];
+    concerns?: string;
+  }): Promise<Persona | null> => {
+    const dbUpdates: Record<string, unknown> = {};
+    
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.role !== undefined) dbUpdates.role = updates.role;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.familyStatus !== undefined) dbUpdates.family_status = updates.familyStatus;
+    if (updates.painPoints !== undefined) dbUpdates.pain_points = updates.painPoints;
+    if (updates.concerns !== undefined) dbUpdates.concerns = updates.concerns;
+
+    const { data, error } = await supabase
+      .from('personas')
+      .update(dbUpdates)
+      .eq('id', personaId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating persona:', error);
+      return null;
+    }
+
+    const updatedPersona: Persona = {
+      id: data.id,
+      projectId: data.project_id,
+      name: data.name,
+      role: data.role || undefined,
+      location: data.location || undefined,
+      familyStatus: data.family_status || undefined,
+      painPoints: data.pain_points || [],
+      concerns: data.concerns || undefined,
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
+    };
+
+    setProjects(prev => prev.map(p => 
+      p.id === projectId 
+        ? { 
+            ...p, 
+            personas: p.personas.map(persona => 
+              persona.id === personaId ? updatedPersona : persona
+            ),
+            updatedAt: new Date() 
+          } 
+        : p
+    ));
+
+    return updatedPersona;
+  };
+
   // Get active project
   const getActiveProject = () => {
     return projects.find(p => p.id === activeProjectId) || null;
@@ -655,6 +713,7 @@ export function useSupabaseData() {
     updateArticle,
     deleteArticle,
     addPersona,
+    updatePersona,
     deletePersona,
     getActiveProject,
     refetch: fetchProjects,

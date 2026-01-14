@@ -1,4 +1,4 @@
-import { User, MapPin, Briefcase, AlertTriangle, Trash2 } from 'lucide-react';
+import { User, MapPin, Briefcase, AlertTriangle, Trash2, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ interface PersonaCardProps {
   persona: Persona;
   onClick?: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   isSelected?: boolean;
   compact?: boolean;
 }
@@ -16,13 +17,19 @@ interface PersonaCardProps {
 export function PersonaCard({ 
   persona, 
   onClick, 
-  onDelete, 
+  onDelete,
+  onEdit,
   isSelected = false,
   compact = false 
 }: PersonaCardProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete?.();
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit?.();
   };
 
   if (compact) {
@@ -73,16 +80,27 @@ export function PersonaCard({
               )}
             </div>
           </div>
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-              onClick={handleDelete}
-            >
-              <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleEdit}
+                title="Edit persona"
+              >
+                <Pencil className="w-4 h-4 text-muted-foreground hover:text-primary" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleDelete}
+              >
+                <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
