@@ -38,6 +38,14 @@ interface DataContextType {
     painPoints?: string[];
     concerns?: string;
   }) => Promise<Persona | null>;
+  updatePersona: (projectId: string, personaId: string, updates: {
+    name?: string;
+    role?: string;
+    location?: string;
+    familyStatus?: string;
+    painPoints?: string[];
+    concerns?: string;
+  }) => Promise<Persona | null>;
   deletePersona: (projectId: string, personaId: string) => Promise<void>;
   getActiveProject: () => Project | null;
   refetch: () => Promise<void>;

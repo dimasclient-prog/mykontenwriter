@@ -74,6 +74,7 @@ export default function ProjectDetail() {
     setStrategyPack,
     loading,
     addPersona,
+    updatePersona,
     deletePersona
   } = useData();
   
@@ -123,6 +124,7 @@ export default function ProjectDetail() {
   const [showPersonaFormModal, setShowPersonaFormModal] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [showPersonaDetailModal, setShowPersonaDetailModal] = useState(false);
+  const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -627,15 +629,34 @@ export default function ProjectDetail() {
 
   const handleSaveTitle = async () => {
     if (!editingTitleId || !editingTitleValue.trim()) return;
-    await updateArticle(project.id, editingTitleId, { title: editingTitleValue.trim() });
+    
+    const article = project.articles.find(a => a.id === editingTitleId);
+    const newTitle = editingTitleValue.trim();
+    const titleChanged = article && article.title !== newTitle;
+    
+    await updateArticle(project.id, editingTitleId, { title: newTitle });
+    
     setEditingTitleId(null);
     setEditingTitleValue('');
     toast.success('Title updated');
+    
+    // If title changed and article is in todo status, auto-generate content
+    if (titleChanged && article && article.status === 'todo') {
+      toast.info('Generating article with new title...');
+      handleGenerateArticle(article.id, newTitle);
+    }
   };
 
   const handleCancelEditTitle = () => {
     setEditingTitleId(null);
     setEditingTitleValue('');
+  };
+
+  // Handle edit persona
+  const handleEditPersona = (persona: Persona) => {
+    setEditingPersona(persona);
+    setShowPersonaDetailModal(false);
+    setShowPersonaFormModal(true);
   };
 
   // Get project language for keyword generation
@@ -1037,6 +1058,7 @@ export default function ProjectDetail() {
                     setSelectedPersona(persona);
                     setShowPersonaDetailModal(true);
                   }}
+                  onEdit={() => handleEditPersona(persona)}
                   onDelete={() => {
                     if (confirm(`Delete persona "${persona.name}"?`)) {
                       deletePersona(project.id, persona.id);
@@ -1295,15 +1317,31 @@ export default function ProjectDetail() {
                             </Button>
                           )}
                           {article.status === 'completed' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingArticle(article)}
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              <span className="hidden sm:inline">View/Edit</span>
-                              <span className="sm:hidden">View</span>
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingArticle(article)}
+                              >
+                                <Eye className="w-3 h-3 mr-1" />
+                                <span className="hidden sm:inline">View/Edit</span>
+                                <span className="sm:hidden">View</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleGenerateArticle(article.id, article.title)}
+                                disabled={generatingArticleId !== null || isBatchGenerating}
+                                title="Regenerate article"
+                              >
+                                {generatingArticleId === article.id ? (
+                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="w-3 h-3 mr-1" />
+                                )}
+                                <span className="hidden sm:inline">Regenerate</span>
+                              </Button>
+                            </>
                           )}
                           {article.status === 'todo' && (
                             <Button
@@ -1592,6 +1630,10 @@ export default function ProjectDetail() {
             // Update the local editing article state to reflect the new title
             setEditingArticle(prev => prev ? { ...prev, title: newTitle } : null);
           }}
+          onRegenerate={() => {
+            handleGenerateArticle(editingArticle.id, editingArticle.title);
+          }}
+          isRegenerating={generatingArticleId === editingArticle.id}
           wordpressConfig={
             (localProject.wordpressUrl || project.wordpressUrl) &&
             (localProject.wordpressUsername || project.wordpressUsername) &&
@@ -1710,14 +1752,29 @@ export default function ProjectDetail() {
       {/* Persona Form Modal */}
       <PersonaFormModal
         open={showPersonaFormModal}
-        onOpenChange={setShowPersonaFormModal}
+        onOpenChange={(open) => {
+          setShowPersonaFormModal(open);
+          if (!open) setEditingPersona(null);
+        }}
         onSubmit={async (data) => {
-          const persona = await addPersona(project.id, data);
-          if (persona) {
-            toast.success('Persona created successfully');
-            setShowPersonaFormModal(false);
+          if (editingPersona) {
+            // Update existing persona
+            const updated = await updatePersona(project.id, editingPersona.id, data);
+            if (updated) {
+              toast.success('Persona updated successfully');
+              setShowPersonaFormModal(false);
+              setEditingPersona(null);
+            }
+          } else {
+            // Create new persona
+            const persona = await addPersona(project.id, data);
+            if (persona) {
+              toast.success('Persona created successfully');
+              setShowPersonaFormModal(false);
+            }
           }
         }}
+        editingPersona={editingPersona}
       />
 
       {/* Persona Detail Modal */}
@@ -1728,6 +1785,7 @@ export default function ProjectDetail() {
           setShowPersonaDetailModal(open);
           if (!open) setSelectedPersona(null);
         }}
+        onEdit={handleEditPersona}
       />
     </div>
   );
