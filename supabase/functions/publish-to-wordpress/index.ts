@@ -87,7 +87,9 @@ serve(async (req) => {
     }
 
     // Create Basic Auth header
-    const authHeader = btoa(`${username}:${password}`);
+    // Use proper encoding to handle Unicode characters
+    const credentials = `${username}:${password}`;
+    const authHeader = btoa(unescape(encodeURIComponent(credentials)));
 
     // Create post via WordPress REST API
     const response = await fetch(`${apiUrl}/posts`, {

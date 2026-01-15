@@ -67,13 +67,32 @@ export default function NewProject() {
       // Determine mode based on analysis mode selection
       const mode = hasWebsiteUrl && analysisMode === 'basic' ? 'auto' : 'advanced';
       
-      // Simulate step progression for UX
+      let websiteAnalysis = null;
+      
+      // If basic mode with URL, analyze website first
       if (hasWebsiteUrl && analysisMode === 'basic') {
-        setTimeout(() => setLoadingStep('analyzing'), 2000);
-        setTimeout(() => setLoadingStep('generating'), 5000);
-      } else {
-        setTimeout(() => setLoadingStep('generating'), 2000);
+        setLoadingStep('scraping');
+        
+        const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-website', {
+          body: {
+            websiteUrl: websiteUrl.trim(),
+            language: language === 'other' ? customLanguage.trim() : language,
+          }
+        });
+        
+        if (analysisError) {
+          console.error('Website analysis error:', analysisError);
+          toast.error('Failed to analyze website, will use manual input');
+        } else if (analysisData?.success) {
+          websiteAnalysis = analysisData.data;
+          console.log('Website analysis complete:', websiteAnalysis);
+        }
+        
+        setLoadingStep('analyzing');
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
+      
+      setLoadingStep('generating');
       
       const { data: personaData, error: personaError } = await supabase.functions.invoke('generate-persona', {
         body: {
@@ -110,49 +129,74 @@ export default function NewProject() {
       );
       
       if (projectId) {
-        // Update project with extracted business information
-        if (businessInfo) {
-          const { updateProject } = await import('@/contexts/DataContext').then(m => {
-            // We need to use the hook context, but since we're in a callback,
-            // we'll update via direct supabase call
-            return { updateProject: null };
-          });
+        // Update project with website analysis data or business info
+        const updateData: any = {};
+        
+        if (websiteAnalysis) {
+          // Use website analysis data (from basic mode)
+          if (websiteAnalysis.businessName) updateData.business_name = websiteAnalysis.businessName;
+          if (websiteAnalysis.product) updateData.product = websiteAnalysis.product;
+          if (websiteAnalysis.targetMarket) updateData.target_market = websiteAnalysis.targetMarket;
+          if (websiteAnalysis.brandVoice) updateData.brand_voice = websiteAnalysis.brandVoice;
           
-          // Update project with business info directly
+          // Add keywords from analysis
+          if (websiteAnalysis.keywords && websiteAnalysis.keywords.length > 0) {
+            updateData.keywords = websiteAnalysis.keywords;
+          }
+        } else if (businessInfo) {
+          // Use business info from persona generation (fallback)
+          if (businessInfo.businessName !== 'Not available') updateData.business_name = businessInfo.businessName;
+          if (businessInfo.businessAddress !== 'Not available') updateData.business_address = businessInfo.businessAddress;
+          if (businessInfo.businessPhone !== 'Not available') updateData.business_phone = businessInfo.businessPhone;
+          if (businessInfo.businessEmail !== 'Not available') updateData.business_email = businessInfo.businessEmail;
+          if (businessInfo.product !== 'Not available') updateData.product = businessInfo.product;
+          if (businessInfo.targetMarket !== 'Not available') updateData.target_market = businessInfo.targetMarket;
+          if (businessInfo.valueProposition !== 'Not available') updateData.value_proposition = businessInfo.valueProposition;
+        }
+        
+        // Update project if we have data
+        if (Object.keys(updateData).length > 0) {
           await supabase
             .from('projects')
-            .update({
-              business_name: businessInfo.businessName !== 'Not available' ? businessInfo.businessName : null,
-              business_address: businessInfo.businessAddress !== 'Not available' ? businessInfo.businessAddress : null,
-              business_phone: businessInfo.businessPhone !== 'Not available' ? businessInfo.businessPhone : null,
-              business_email: businessInfo.businessEmail !== 'Not available' ? businessInfo.businessEmail : null,
-              product: businessInfo.product !== 'Not available' ? businessInfo.product : product || null,
-              target_market: businessInfo.targetMarket !== 'Not available' ? businessInfo.targetMarket : targetMarket || null,
-              value_proposition: businessInfo.valueProposition !== 'Not available' ? businessInfo.valueProposition : valueProposition || null,
-            })
+            .update(updateData)
             .eq('id', projectId);
         }
 
-        // Add generated persona or fallback
-        const persona = generatedPersona || {
-          name: 'Primary Customer',
-          role: targetMarket || 'Potential Customer',
-          location: '',
-          familyStatus: '',
-          painPoints: ['Understanding the product/service', 'Finding the right solution'],
-          concerns: 'Looking for reliable solutions'
-        };
+        // Add personas from website analysis or generated persona
+        if (websiteAnalysis?.personas && websiteAnalysis.personas.length > 0) {
+          // Add all personas from website analysis (up to 3)
+          for (const persona of websiteAnalysis.personas.slice(0, 3)) {
+            await addPersona(projectId, {
+              name: persona.name || 'Customer Persona',
+              role: persona.description || 'Target Customer',
+              location: '',
+              familyStatus: '',
+              painPoints: persona.painPoints || [],
+              concerns: persona.goals?.join(', ') || 'Looking for solutions'
+            });
+          }
+        } else {
+          // Add generated persona or fallback
+          const persona = generatedPersona || {
+            name: 'Primary Customer',
+            role: targetMarket || 'Potential Customer',
+            location: '',
+            familyStatus: '',
+            painPoints: ['Understanding the product/service', 'Finding the right solution'],
+            concerns: 'Looking for reliable solutions'
+          };
+          
+          await addPersona(projectId, {
+            name: persona.name,
+            role: persona.role,
+            location: persona.location || '',
+            familyStatus: persona.familyStatus || '',
+            painPoints: persona.painPoints || [],
+            concerns: persona.concerns
+          });
+        }
         
-        await addPersona(projectId, {
-          name: persona.name,
-          role: persona.role,
-          location: persona.location || '',
-          familyStatus: persona.familyStatus || '',
-          painPoints: persona.painPoints || [],
-          concerns: persona.concerns
-        });
-        
-        toast.success('Project created with AI-generated persona!');
+        toast.success(websiteAnalysis ? 'Project created with AI website analysis!' : 'Project created with AI-generated persona!');
         navigate(`/project/${projectId}`);
       } else {
         toast.error('Failed to create project');

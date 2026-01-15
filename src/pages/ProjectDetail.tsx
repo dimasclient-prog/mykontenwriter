@@ -1220,14 +1220,15 @@ export default function ProjectDetail() {
                   selectedArticles.has(article.id) && "border-blue-500/50 bg-blue-500/5"
                 )}>
                   <CardContent className="py-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div className="flex items-start md:items-center gap-3 min-w-0">
+                    <div className="flex flex-col gap-3">
+                      {/* Top row: Checkbox, Icon, Title, Word Count */}
+                      <div className="flex items-start gap-3 min-w-0">
                         {/* Selection checkbox for completed articles */}
                         {article.status === 'completed' && article.content && (localProject.wordpressUrl || project.wordpressUrl) && (
                           <Checkbox
                             checked={selectedArticles.has(article.id)}
                             onCheckedChange={() => toggleArticleSelection(article.id)}
-                            className="mt-1 md:mt-0"
+                            className="mt-1 shrink-0"
                           />
                         )}
                         <div className="flex items-center gap-2 shrink-0">
@@ -1237,7 +1238,7 @@ export default function ProjectDetail() {
                             getStatusIcon(article.status)
                           )}
                         </div>
-                        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3 min-w-0 flex-1">
+                        <div className="flex flex-col gap-1 min-w-0 flex-1">
                           {editingTitleId === article.id ? (
                             <div className="flex items-center gap-2 flex-1">
                               <Input
@@ -1250,33 +1251,37 @@ export default function ProjectDetail() {
                                 className="flex-1"
                                 autoFocus
                               />
-                              <Button size="sm" onClick={handleSaveTitle}>
+                              <Button size="sm" onClick={handleSaveTitle} className="shrink-0">
                                 <Check className="w-3 h-3" />
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={handleCancelEditTitle}>
+                              <Button size="sm" variant="ghost" onClick={handleCancelEditTitle} className="shrink-0">
                                 <AlertCircle className="w-3 h-3" />
                               </Button>
                             </div>
                           ) : (
-                            <span 
-                              className="font-medium break-words md:truncate cursor-pointer hover:text-primary transition-colors"
-                              onClick={() => handleStartEditTitle(article)}
-                              title="Click to edit title"
-                            >
-                              {article.title}
-                            </span>
-                          )}
-                          {article.wordCount && editingTitleId !== article.id && (
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {article.wordCount} words
-                            </span>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                              <span 
+                                className="font-medium break-words cursor-pointer hover:text-primary transition-colors line-clamp-2"
+                                onClick={() => handleStartEditTitle(article)}
+                                title={article.title}
+                              >
+                                {article.title}
+                              </span>
+                              {article.wordCount && (
+                                <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                                  {article.wordCount} words
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 md:gap-3 shrink-0 ml-7 md:ml-0 flex-wrap">
+                      
+                      {/* Bottom row: Badges and Actions */}
+                      <div className="flex flex-wrap items-center gap-2 ml-7 sm:ml-11">
                         {/* Used Keywords badges - show first 2 keywords */}
                         {article.usedKeywords && article.usedKeywords.length > 0 && (
-                          <div className="hidden sm:flex items-center gap-1">
+                          <div className="flex items-center gap-1">
                             {article.usedKeywords.slice(0, 2).map((keyword, idx) => (
                               <Badge 
                                 key={idx} 
@@ -1304,7 +1309,9 @@ export default function ProjectDetail() {
                           </Badge>
                         )}
                         {getStatusBadge(article.status)}
-                        <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1 ml-auto">
                           {/* Edit title button */}
                           {editingTitleId !== article.id && (
                             <Button

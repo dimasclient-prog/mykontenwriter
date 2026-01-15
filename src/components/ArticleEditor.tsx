@@ -16,6 +16,9 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import UnderlineExtension from '@tiptap/extension-underline';
 import LinkExtension from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import TextAlign from '@tiptap/extension-text-align';
+import Image from '@tiptap/extension-image';
 
 interface ArticleEditorProps {
   article: Article;
@@ -60,6 +63,17 @@ export function ArticleEditor({ article, projectId, open, onClose, onSave, onTit
           class: 'text-primary underline',
         },
       }),
+      Placeholder.configure({
+        placeholder: 'Start writing your article content here...',
+      }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'max-w-full h-auto rounded-lg',
+        },
+      }),
     ],
     content: content,
     onUpdate: ({ editor }) => {
@@ -69,7 +83,7 @@ export function ArticleEditor({ article, projectId, open, onClose, onSave, onTit
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose max-w-none focus:outline-none min-h-[400px] p-4',
+        class: 'prose prose-sm sm:prose lg:prose-lg max-w-none focus:outline-none min-h-[400px] p-4 prose-headings:font-bold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-base prose-p:leading-7 prose-a:text-primary prose-a:underline prose-strong:font-bold prose-em:italic prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4',
       },
     },
   });
@@ -220,14 +234,14 @@ export function ArticleEditor({ article, projectId, open, onClose, onSave, onTit
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 min-w-0">
-                <DialogTitle className="text-xl truncate">{article.title}</DialogTitle>
+              <div className="flex items-start gap-2 min-w-0 flex-1">
+                <DialogTitle className="text-xl break-words leading-tight flex-1">{article.title}</DialogTitle>
                 {onTitleChange && (
                   <Button 
                     size="sm" 
                     variant="ghost" 
                     onClick={() => setIsEditingTitle(true)}
-                    className="shrink-0"
+                    className="shrink-0 mt-0.5"
                     title="Edit title"
                   >
                     <Pencil className="w-3 h-3 text-muted-foreground hover:text-primary" />

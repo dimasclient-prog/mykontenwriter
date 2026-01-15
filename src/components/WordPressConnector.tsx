@@ -48,7 +48,9 @@ export function WordPressConnector({
       }
 
       // Test with a simple users/me call to validate credentials
-      const authHeader = btoa(`${wordpressUsername}:${wordpressPassword}`);
+      // Use TextEncoder to handle Unicode characters properly
+      const credentials = `${wordpressUsername}:${wordpressPassword}`;
+      const authHeader = btoa(unescape(encodeURIComponent(credentials)));
       const testResponse = await fetch(`${apiUrl}/users/me`, {
         method: 'GET',
         headers: {

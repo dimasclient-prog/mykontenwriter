@@ -17,6 +17,9 @@ interface PersonaRequest {
     targetMarket?: string;
     valueProposition?: string;
   };
+  generateMultiple?: boolean; // Flag to generate 3 personas
+  product?: string;
+  targetMarket?: string;
 }
 
 async function scrapeWebsite(url: string): Promise<string | null> {
@@ -269,9 +272,9 @@ serve(async (req) => {
   }
 
   try {
-    const { websiteUrl, businessContext, analysisMode, language, advancedData } = await req.json() as PersonaRequest;
+    const { websiteUrl, businessContext, analysisMode, language, advancedData, generateMultiple, product, targetMarket } = await req.json() as PersonaRequest;
 
-    console.log(`Generating persona with mode: ${analysisMode}, language: ${language}`);
+    console.log(`Generating persona with mode: ${analysisMode}, language: ${language}, multiple: ${generateMultiple}`);
 
     const languageInstruction = language === 'other' 
       ? 'the specified language' 
@@ -283,7 +286,54 @@ serve(async (req) => {
       websiteContent = await scrapeWebsite(websiteUrl);
     }
 
-    const systemPrompt = `You are an expert market researcher and customer persona specialist.
+    // Different prompt for generating multiple personas
+    const systemPrompt = generateMultiple 
+      ? `You are an expert market researcher and customer persona specialist.
+Your task is to generate 3 DIFFERENT and DIVERSE customer personas.
+ALL OUTPUT MUST BE IN ${languageInstruction.toUpperCase()} LANGUAGE.
+
+You must respond with a valid JSON object containing:
+{
+  "personas": [
+    {
+      "name": "A realistic full name for persona 1",
+      "role": "Job title or profession",
+      "description": "Brief description of this persona type",
+      "location": "City, Region or Country",
+      "familyStatus": "e.g., Single, Married with 2 kids, etc.",
+      "painPoints": ["pain point 1", "pain point 2", "pain point 3"],
+      "goals": ["goal 1", "goal 2", "goal 3"],
+      "concerns": "A brief summary of their main concerns"
+    },
+    {
+      "name": "A realistic full name for persona 2",
+      "role": "Different job title or profession",
+      "description": "Brief description of this persona type",
+      "location": "Different location",
+      "familyStatus": "Different family status",
+      "painPoints": ["different pain point 1", "different pain point 2", "different pain point 3"],
+      "goals": ["different goal 1", "different goal 2", "different goal 3"],
+      "concerns": "Different concerns"
+    },
+    {
+      "name": "A realistic full name for persona 3",
+      "role": "Another different job title",
+      "description": "Brief description of this persona type",
+      "location": "Another location",
+      "familyStatus": "Another family status",
+      "painPoints": ["another pain point 1", "another pain point 2", "another pain point 3"],
+      "goals": ["another goal 1", "another goal 2", "another goal 3"],
+      "concerns": "Another set of concerns"
+    }
+  ]
+}
+
+CRITICAL REQUIREMENTS:
+- Create 3 DISTINCT personas with DIFFERENT demographics, pain points, and goals
+- Each persona should represent a different segment of the target market
+- Make personas realistic and detailed
+- Vary age groups, professions, and life situations`
+      : `You are an expert market researcher and customer persona specialist.
 Your task is to generate a detailed customer persona AND extract comprehensive business information.
 ALL OUTPUT MUST BE IN ${languageInstruction.toUpperCase()} LANGUAGE.
 
@@ -319,7 +369,26 @@ CRITICAL REQUIREMENTS:
 - For product/service, list ALL main offerings you can identify`;
 
     let userPrompt: string;
-    if (websiteUrl && analysisMode === 'basic') {
+    
+    if (generateMultiple) {
+      // Prompt for generating multiple personas
+      const contextInfo: string[] = [];
+      if (websiteUrl) contextInfo.push(`Website: ${websiteUrl}`);
+      if (product || advancedData?.product) contextInfo.push(`Product/Service: ${product || advancedData?.product}`);
+      if (targetMarket || advancedData?.targetMarket) contextInfo.push(`Target Market: ${targetMarket || advancedData?.targetMarket}`);
+      if (businessContext) contextInfo.push(`Business Context: ${businessContext}`);
+      
+      userPrompt = `Generate 3 DIFFERENT customer personas for this business:
+
+${contextInfo.join('\n')}
+
+Create 3 distinct personas that represent different segments of potential customers:
+1. One persona could be a primary/ideal customer
+2. One could be a secondary customer segment  
+3. One could be an emerging or aspirational customer segment
+
+Make each persona unique with different demographics, pain points, and goals.`;
+    } else if (websiteUrl && analysisMode === 'basic') {
       if (websiteContent) {
         userPrompt = `Analyze this website content and generate a customer persona WITH extracted business information:
 
