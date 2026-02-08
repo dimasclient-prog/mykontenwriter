@@ -89,6 +89,14 @@ export function HCUAuditForm({ onSubmit, isSubmitting, personas }: HCUAuditFormP
               </AlertDescription>
             </Alert>
           )}
+
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertDescription className="text-sm">
+              <strong>⚠️ Setup Required:</strong> Fitur HCU Audit memerlukan deployment Supabase Edge Function. 
+              Jika Anda mendapat error "Failed to send request", silakan deploy function <code>audit-content-ai</code> terlebih dahulu. 
+              Lihat file <code>DEPLOY_FUNCTIONS.md</code> untuk panduan lengkap.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
 

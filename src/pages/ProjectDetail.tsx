@@ -705,7 +705,15 @@ export default function ProjectDetail() {
 
       if (auditError) {
         console.error('AI audit error:', auditError);
-        toast.error(`Failed to audit content: ${auditError.message || 'Unknown error'}`);
+        
+        // Check if it's a function not found error
+        if (auditError.message?.includes('Failed to send a request') || 
+            auditError.message?.includes('FunctionsRelayError') ||
+            auditError.message?.includes('not found')) {
+          toast.error('HCU Audit function belum di-deploy. Silakan deploy function terlebih dahulu. Lihat DEPLOY_FUNCTIONS.md untuk panduan.');
+        } else {
+          toast.error(`Failed to audit content: ${auditError.message || 'Unknown error'}`);
+        }
         setIsSubmittingAudit(false);
         return;
       }
