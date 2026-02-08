@@ -679,31 +679,56 @@ export default function ProjectDetail() {
   };
 
   // HCU Audit handler
-  const handleSubmitAudit = async (input: HCUAuditInput) => {
+  const handleSubmitAudit = async (url: string, personaId: string) => {
     setIsSubmittingAudit(true);
     try {
-      const { data, error } = await supabase.functions.invoke('calculate-hcu-score', {
+      const selectedPersona = project.personas.find(p => p.id === personaId);
+      if (!selectedPersona) {
+        toast.error('Persona not found');
+        return;
+      }
+
+      // Call AI audit function
+      const { data: auditData, error: auditError } = await supabase.functions.invoke('audit-content-ai', {
         body: {
-          input,
+          url,
+          personaData: selectedPersona,
           projectId: project.id,
         },
       });
 
-      if (error) {
-        console.error('HCU audit error:', error);
-        toast.error('Failed to calculate HCU score');
+      if (auditError) {
+        console.error('AI audit error:', auditError);
+        toast.error('Failed to audit content with AI');
         return;
       }
 
-      if (data?.result) {
-        setHcuAuditResults([data.result, ...hcuAuditResults]);
-        setSelectedAuditResult(data.result);
+      if (auditData?.result) {
+        // Generate recommendations using the existing calculate-hcu-score logic
+        const { data: scoreData, error: scoreError } = await supabase.functions.invoke('calculate-hcu-score', {
+          body: {
+            input: auditData.result.input,
+            projectId: project.id,
+          },
+        });
+
+        if (scoreError) {
+          console.error('Score calculation error:', scoreError);
+          // Use result without recommendations
+          setHcuAuditResults([auditData.result, ...hcuAuditResults]);
+          setSelectedAuditResult(auditData.result);
+        } else if (scoreData?.result) {
+          // Use result with recommendations
+          setHcuAuditResults([scoreData.result, ...hcuAuditResults]);
+          setSelectedAuditResult(scoreData.result);
+        }
+
         setShowAuditForm(false);
         toast.success('HCU Audit completed successfully!');
       }
     } catch (err) {
       console.error('HCU audit error:', err);
-      toast.error('Failed to calculate HCU score');
+      toast.error('Failed to audit content');
     } finally {
       setIsSubmittingAudit(false);
     }
@@ -1477,6 +1502,7 @@ export default function ProjectDetail() {
               <HCUAuditForm 
                 onSubmit={handleSubmitAudit}
                 isSubmitting={isSubmittingAudit}
+                personas={project.personas}
               />
             </div>
           )}
