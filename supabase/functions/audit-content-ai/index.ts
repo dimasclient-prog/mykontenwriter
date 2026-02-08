@@ -284,70 +284,103 @@ You must respond with a valid JSON object with this exact structure:
     "massProduced": true|false,
     "thinContent": true|false,
     "aiGeneratedNoEdit": true|false
+  },
+  "finalAssessment": {
+    "betterThanSERP": true|false,
+    "worthBookmarking": true|false,
+    "showsGenuineCare": true|false,
+    "summary": "2-3 sentence overall assessment"
   }
 }
 
 SCORING GUIDELINES (1-5 scale):
-5 = Excellent - Exceeds HCU standards
-4 = Good - Meets HCU standards well
-3 = Average - Meets basic HCU standards
-2 = Below Average - Needs improvement
-1 = Poor - Fails HCU standards
+5 = Excellent - Exceeds HCU standards, exceptional quality
+4 = Good - Meets HCU standards well, minor improvements possible
+3 = Average - Meets basic HCU standards but nothing remarkable
+2 = Below Average - Significant improvements needed
+1 = Poor - Fails HCU standards completely
 
-EVALUATION CRITERIA:
+═══════════════════════════════════════════════════════
+A. CONTENT & QUALITY (Kualitas & Nilai Konten)
+═══════════════════════════════════════════════════════
 
-1. ORIGINALITY (1-5): Does content provide unique value?
-   - Original insights, data, or perspectives
-   - Not just rehashing existing content
-   - Adds something new to the topic
+1. ORIGINALITY & VALUE (Originalitas & Nilai Tambah) → scores.originality
+   Evaluate these questions:
+   - Apakah konten menyajikan informasi, analisis, atau sudut pandang original?
+   - Apakah konten tidak sekadar mengulang apa yang sudah banyak dibahas di internet?
+   - Apakah ada pengalaman nyata, studi kasus, atau insight praktis?
+   - Jika mengacu ke sumber lain, apakah ada nilai tambah yang jelas?
 
-2. COMPLETENESS (1-5): Is the topic covered thoroughly?
-   - Comprehensive coverage of the topic
-   - Answers common questions
-   - Provides depth, not just surface-level info
+2. COMPLETENESS & DEPTH (Kelengkapan & Kedalaman Topik) → scores.completeness
+   Evaluate these questions:
+   - Apakah topik dibahas menyeluruh dan tidak setengah-setengah?
+   - Apakah pembaca mendapatkan jawaban tuntas, bukan hanya pengantar?
+   - Apakah ada contoh, penjelasan, atau penerapan nyata?
+   - Apakah konten lebih bernilai dibanding hasil pencarian lain dengan topik serupa?
 
-3. RELEVANCE (1-5): Is it useful for the target audience?
-   - Addresses real user needs/pain points
-   - Provides actionable information
-   - Matches search intent
+3. RELEVANCE & BENEFIT (Relevansi & Manfaat bagi Pembaca) → scores.relevance
+   Evaluate these questions:
+   - Apakah konten benar-benar membantu target audiens?
+   - Apakah pembaca akan: Menyimpan (bookmark)? Membagikan ke orang lain? Merekomendasikan sebagai referensi?
+   - Apakah konten terasa dibuat untuk manusia, bukan mesin pencari?
 
-4. STRUCTURE (1-5): Is content well-organized?
-   - Clear headings and hierarchy
-   - Easy to scan and read
-   - Logical flow of information
+4. TITLE & STRUCTURE (Judul & Struktur Konten) → scores.structure
+   Evaluate these questions:
+   - Apakah judul deskriptif dan jelas?
+   - Apakah judul mewakili isi konten secara akurat?
+   - Apakah judul tidak clickbait atau berlebihan?
+   - Apakah struktur konten rapi (heading, subheading, alur logis)?
 
-5. WRITING QUALITY (1-5): Is it well-written?
-   - Clear, natural language
-   - Good grammar and spelling
-   - Professional presentation
+5. WRITING & PRODUCTION QUALITY (Kualitas Penulisan & Produksi) → scores.writingQuality
+   Evaluate these questions:
+   - Apakah bahasa mudah dipahami, konsisten, dan profesional?
+   - Apakah ada kesalahan ejaan, typo, atau kalimat berulang?
+   - Apakah konten terasa diproduksi dengan niat dan perhatian, bukan terburu-buru?
+   - Apakah konten terlihat mass-produced atau generik?
 
-6. EXPERIENCE (1-5): Shows first-hand experience?
-   - Personal stories or case studies
-   - Real-world testing/usage
-   - Practical examples
+═══════════════════════════════════════════════════════
+B. E-E-A-T (Expertise, Experience, Authoritativeness, Trust)
+═══════════════════════════════════════════════════════
 
-7. EXPERTISE (1-5): Demonstrates subject expertise?
-   - Deep knowledge of topic
-   - Accurate information
-   - Credible sources cited
+6. EXPERIENCE (Pengalaman) → scores.experience
+   Evaluate these questions:
+   - Apakah penulis/brand menunjukkan pengalaman langsung di topik tersebut?
+   - Apakah ada cerita nyata, praktik lapangan, atau hasil implementasi?
 
-8. AUTHORITATIVENESS (1-5): Is the source authoritative?
-   - Recognized in the field
-   - Quality backlinks/mentions
-   - Established reputation
+7. EXPERTISE (Keahlian) → scores.expertise
+   Evaluate these questions:
+   - Apakah konten menunjukkan pemahaman mendalam, bukan opini dangkal?
+   - Apakah pembahasan terdengar seperti ditulis oleh praktisi, pelaku bisnis, atau orang yang benar-benar paham topik?
 
-9. TRUSTWORTHINESS (1-5): Can users trust this content?
-   - Transparent about sources
-   - Contact information available
-   - No misleading claims
+8. AUTHORITATIVENESS (Otoritas) → scores.authoritativeness
+   Evaluate these questions:
+   - Apakah brand atau penulis dikenal di niche-nya?
+   - Apakah brand punya positioning yang jelas?
+   - Apakah ada indikasi bahwa situs ini layak dijadikan rujukan?
 
-RED FLAGS (check if present):
-- Too promotional: Excessive product pushing
-- No author: Anonymous content
-- Claims without proof: Unsubstantiated statements
-- Mass-produced: Generic, templated content
-- Thin content: Lacks depth or substance
-- AI without editing: Obviously AI-generated without human touch`;
+9. TRUSTWORTHINESS (Kepercayaan) → scores.trustworthiness
+   Evaluate these questions:
+   - Apakah ada halaman About Us, profil penulis, dan informasi kontak yang jelas?
+   - Apakah klaim yang dibuat masuk akal dan tidak menyesatkan?
+   - Apakah tidak ada kesalahan fakta yang mudah diverifikasi?
+
+═══════════════════════════════════════════════════════
+C. FINAL HCU ASSESSMENT (Penilaian Akhir)
+═══════════════════════════════════════════════════════
+
+Answer these final questions in "finalAssessment":
+- betterThanSERP: Apakah konten ini lebih baik daripada konten rata-rata di SERP?
+- worthBookmarking: Apakah konten ini pantas dijadikan referensi jangka panjang, masuk buku, modul, atau panduan praktis?
+- showsGenuineCare: Apakah konten ini membantu Google memahami bahwa "Website ini dibuat oleh orang yang benar-benar tahu dan peduli dengan topiknya"?
+- summary: Ringkasan penilaian keseluruhan dalam 2-3 kalimat.
+
+RED FLAGS (periksa apakah ada):
+- isTooPromotional: Terlalu banyak promosi produk/jasa
+- noAuthor: Tidak ada identitas penulis
+- claimsWithoutProof: Klaim tanpa bukti pendukung
+- massProduced: Konten generik/template yang diproduksi massal
+- thinContent: Konten dangkal tanpa substansi
+- aiGeneratedNoEdit: Jelas ditulis AI tanpa sentuhan manusia`;
 
     const userPrompt = `Analyze this web content for HCU compliance:
 
@@ -364,12 +397,25 @@ Challenges: ${Array.isArray(personaData.challenges) ? personaData.challenges.joi
 CONTENT TO ANALYZE:
 ${pageContent}
 
-Provide a comprehensive HCU audit considering:
-1. How well does this content serve the target persona?
-2. Does it address their pain points and goals?
-3. Is it genuinely helpful or just SEO-optimized fluff?
-4. Does it demonstrate E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness)?
-5. Are there any red flags that could trigger HCU penalties?
+Provide a comprehensive HCU audit using ALL criteria from sections A, B, and C:
+
+A. CONTENT & QUALITY:
+1. Originalitas & Nilai Tambah - Is the content original with real value?
+2. Kelengkapan & Kedalaman - Is the topic covered thoroughly?
+3. Relevansi & Manfaat - Does it truly help the target persona?
+4. Judul & Struktur - Is the title accurate and structure clean?
+5. Kualitas Penulisan - Is it well-written and not mass-produced?
+
+B. E-E-A-T:
+6. Experience - Does it show first-hand experience?
+7. Expertise - Does it demonstrate deep knowledge?
+8. Authoritativeness - Is the source authoritative in this niche?
+9. Trustworthiness - Can users trust this content?
+
+C. FINAL ASSESSMENT:
+- Is this content better than average SERP results?
+- Is it worth bookmarking as a long-term reference?
+- Does it show genuine care and expertise from the creator?
 
 Return your analysis as a JSON object following the exact structure specified in the system prompt.`;
 
@@ -489,17 +535,36 @@ Return your analysis as a JSON object following the exact structure specified in
       penaltyScore: parseFloat(penaltyScore.toFixed(2)),
       finalScore: parseFloat(finalScore.toFixed(2)),
       status,
+      finalAssessment: analysis.finalAssessment || {
+        betterThanSERP: false,
+        worthBookmarking: false,
+        showsGenuineCare: false,
+        summary: '',
+      },
       breakdown: [
         {
           category: 'Kualitas Konten',
           score: contentQualityScore,
           weight: 0.4,
+          details: [
+            { name: 'Originalitas & Nilai Tambah', score: analysis.scores.originality.score, notes: analysis.scores.originality.notes },
+            { name: 'Kelengkapan & Kedalaman', score: analysis.scores.completeness.score, notes: analysis.scores.completeness.notes },
+            { name: 'Relevansi & Manfaat', score: analysis.scores.relevance.score, notes: analysis.scores.relevance.notes },
+            { name: 'Judul & Struktur', score: analysis.scores.structure.score, notes: analysis.scores.structure.notes },
+            { name: 'Kualitas Penulisan', score: analysis.scores.writingQuality.score, notes: analysis.scores.writingQuality.notes },
+          ],
           notes: `Originalitas (${analysis.scores.originality.score}), Kelengkapan (${analysis.scores.completeness.score}), Relevansi (${analysis.scores.relevance.score}), Struktur (${analysis.scores.structure.score}), Kualitas Penulisan (${analysis.scores.writingQuality.score})`,
         },
         {
           category: 'E-E-A-T',
           score: eeatScore,
           weight: 0.4,
+          details: [
+            { name: 'Experience (Pengalaman)', score: analysis.scores.experience.score, notes: analysis.scores.experience.notes },
+            { name: 'Expertise (Keahlian)', score: analysis.scores.expertise.score, notes: analysis.scores.expertise.notes },
+            { name: 'Authoritativeness (Otoritas)', score: analysis.scores.authoritativeness.score, notes: analysis.scores.authoritativeness.notes },
+            { name: 'Trustworthiness (Kepercayaan)', score: analysis.scores.trustworthiness.score, notes: analysis.scores.trustworthiness.notes },
+          ],
           notes: `Experience (${analysis.scores.experience.score}), Expertise (${analysis.scores.expertise.score}), Authoritativeness (${analysis.scores.authoritativeness.score}), Trustworthiness (${analysis.scores.trustworthiness.score})`,
         },
         {
@@ -509,7 +574,7 @@ Return your analysis as a JSON object following the exact structure specified in
           notes: penaltyCount > 0 ? `${penaltyCount} red flag(s): ${penalties.join(', ')}` : 'Tidak ada red flags',
         },
       ],
-      recommendations: [], // Will be generated by calculate-hcu-score function
+      recommendations: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
