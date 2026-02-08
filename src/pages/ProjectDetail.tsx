@@ -685,8 +685,12 @@ export default function ProjectDetail() {
       const selectedPersona = project.personas.find(p => p.id === personaId);
       if (!selectedPersona) {
         toast.error('Persona not found');
+        setIsSubmittingAudit(false);
         return;
       }
+
+      console.log('Starting HCU audit for:', url);
+      console.log('Selected persona:', selectedPersona.name);
 
       // Call AI audit function
       const { data: auditData, error: auditError } = await supabase.functions.invoke('audit-content-ai', {
@@ -697,13 +701,25 @@ export default function ProjectDetail() {
         },
       });
 
+      console.log('Audit response:', { data: auditData, error: auditError });
+
       if (auditError) {
         console.error('AI audit error:', auditError);
-        toast.error('Failed to audit content with AI');
+        toast.error(`Failed to audit content: ${auditError.message || 'Unknown error'}`);
+        setIsSubmittingAudit(false);
+        return;
+      }
+
+      if (auditData?.error) {
+        console.error('AI audit returned error:', auditData.error);
+        toast.error(`AI Audit Error: ${auditData.error}`);
+        setIsSubmittingAudit(false);
         return;
       }
 
       if (auditData?.result) {
+        console.log('Audit successful, generating recommendations...');
+        
         // Generate recommendations using the existing calculate-hcu-score logic
         const { data: scoreData, error: scoreError } = await supabase.functions.invoke('calculate-hcu-score', {
           body: {
@@ -717,18 +733,23 @@ export default function ProjectDetail() {
           // Use result without recommendations
           setHcuAuditResults([auditData.result, ...hcuAuditResults]);
           setSelectedAuditResult(auditData.result);
+          toast.warning('Audit completed but recommendations generation failed');
         } else if (scoreData?.result) {
           // Use result with recommendations
+          console.log('Recommendations generated successfully');
           setHcuAuditResults([scoreData.result, ...hcuAuditResults]);
           setSelectedAuditResult(scoreData.result);
+          toast.success('HCU Audit completed successfully!');
         }
 
         setShowAuditForm(false);
-        toast.success('HCU Audit completed successfully!');
+      } else {
+        console.error('No result in audit data:', auditData);
+        toast.error('No audit result returned from AI');
       }
     } catch (err) {
       console.error('HCU audit error:', err);
-      toast.error('Failed to audit content');
+      toast.error(`Failed to audit content: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsSubmittingAudit(false);
     }

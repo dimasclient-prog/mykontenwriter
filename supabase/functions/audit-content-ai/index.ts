@@ -9,17 +9,21 @@ const corsHeaders = {
 
 async function fetchPageContent(url: string): Promise<string> {
   try {
+    console.log(`Fetching content from: ${url}`);
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
+      redirect: 'follow',
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch URL: ${response.status}`);
+      console.error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
     }
     
     const html = await response.text();
+    console.log(`Fetched ${html.length} characters of HTML`);
     
     // Simple HTML to text conversion - remove scripts, styles, and tags
     let text = html
@@ -29,15 +33,22 @@ async function fetchPageContent(url: string): Promise<string> {
       .replace(/\s+/g, ' ')
       .trim();
     
+    console.log(`Extracted ${text.length} characters of text`);
+    
     // Limit to first 8000 characters to avoid token limits
     if (text.length > 8000) {
       text = text.substring(0, 8000) + '...';
+      console.log('Content truncated to 8000 characters');
+    }
+    
+    if (text.length < 100) {
+      throw new Error('Content too short or failed to extract text from page');
     }
     
     return text;
   } catch (error) {
     console.error('Error fetching page content:', error);
-    throw new Error('Failed to fetch page content');
+    throw error;
   }
 }
 
@@ -209,12 +220,29 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== HCU Audit AI Function Started ===');
+    
     const authHeader = req.headers.get('Authorization');
+    console.log('Auth header present:', !!authHeader);
+    
     const { apiKey, provider, model } = await getUserCredentials(authHeader);
+    console.log(`Credentials retrieved: ${provider}/${model}`);
 
-    const { url, personaData, projectId } = await req.json();
+    const body = await req.json();
+    console.log('Request body keys:', Object.keys(body));
+    
+    const { url, personaData, projectId } = body;
+    
+    if (!url) {
+      throw new Error('URL is required');
+    }
+    
+    if (!personaData) {
+      throw new Error('Persona data is required');
+    }
 
     console.log(`Auditing content from URL: ${url}`);
+    console.log(`Persona: ${personaData.name}`);
     console.log(`Using ${provider}/${model}`);
 
     // 1. Fetch page content
@@ -364,17 +392,24 @@ Return your analysis as a JSON object following the exact structure specified in
         throw new Error(`Unknown provider: ${provider}`);
     }
 
-    console.log('AI Response received');
+    console.log('AI Response received, length:', aiResponse.length);
+    console.log('AI Response preview:', aiResponse.substring(0, 200));
 
     // 4. Parse AI response
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('Failed to parse AI response as JSON');
+      console.error('Failed to find JSON in AI response');
+      console.error('Full AI response:', aiResponse);
+      throw new Error('Failed to parse AI response as JSON - no JSON object found in response');
     }
 
+    console.log('JSON extracted, parsing...');
     const analysis = JSON.parse(jsonMatch[0]);
+    console.log('Analysis parsed successfully');
+    console.log('Analysis keys:', Object.keys(analysis));
 
     // 5. Calculate scores
+    console.log('Calculating scores...');
     const contentQualityScore = (
       analysis.scores.originality.score +
       analysis.scores.completeness.score +
@@ -389,6 +424,9 @@ Return your analysis as a JSON object following the exact structure specified in
       analysis.scores.authoritativeness.score +
       analysis.scores.trustworthiness.score
     ) / 4;
+
+    console.log(`Content Quality Score: ${contentQualityScore}`);
+    console.log(`E-E-A-T Score: ${eeatScore}`);
 
     let penaltyCount = 0;
     const penalties: string[] = [];
@@ -476,13 +514,32 @@ Return your analysis as a JSON object following the exact structure specified in
       updatedAt: new Date().toISOString(),
     };
 
+    console.log('Result built successfully');
+    console.log(`Final Score: ${result.finalScore}, Status: ${result.status}`);
+    console.log('=== HCU Audit AI Function Completed ===');
+
     return new Response(JSON.stringify({ result }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error in audit-content-ai:', error);
+    
+    let errorMessage = 'Unknown error occurred';
+    let errorDetails = '';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = error.stack || '';
+    }
+    
+    console.error('Error details:', errorDetails);
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        details: errorDetails,
+        timestamp: new Date().toISOString()
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
