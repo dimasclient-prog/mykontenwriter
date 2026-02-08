@@ -53,6 +53,27 @@ export interface HCUAuditInput {
   aiGeneratedNoEdit: boolean;
 }
 
+export interface BreakdownDetail {
+  name: string;
+  score: number;
+  notes: string;
+}
+
+export interface BreakdownItem {
+  category: string;
+  score: number;
+  weight: number;
+  notes: string;
+  details?: BreakdownDetail[];
+}
+
+export interface FinalAssessment {
+  betterThanSERP: boolean;
+  worthBookmarking: boolean;
+  showsGenuineCare: boolean;
+  summary: string;
+}
+
 export interface HCUAuditResult {
   id: string;
   projectId: string;
@@ -68,13 +89,11 @@ export interface HCUAuditResult {
   finalScore: number;
   status: AuditStatus;
   
+  // Penilaian Akhir HCU
+  finalAssessment?: FinalAssessment;
+  
   // Breakdown & rekomendasi
-  breakdown: {
-    category: string;
-    score: number;
-    weight: number;
-    notes: string;
-  }[];
+  breakdown: BreakdownItem[];
   recommendations: {
     priority: 'high' | 'medium' | 'low';
     category: string;
