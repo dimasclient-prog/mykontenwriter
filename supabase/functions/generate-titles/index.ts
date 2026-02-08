@@ -87,9 +87,9 @@ async function callOpenAI(apiKey: string, model: string, systemPrompt: string, u
   };
 
   if (isNewModel) {
-    body.max_completion_tokens = 2000;
+    body.max_completion_tokens = 4000;
   } else {
-    body.max_tokens = 2000;
+    body.max_tokens = 4000;
     body.temperature = 0.8;
   }
 
@@ -134,7 +134,7 @@ async function callGemini(apiKey: string, model: string, systemPrompt: string, u
         contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
         generationConfig: {
           temperature: 0.8,
-          maxOutputTokens: 2000,
+          maxOutputTokens: 4000,
         },
       }),
     }
@@ -171,7 +171,7 @@ async function callDeepSeek(apiKey: string, model: string, systemPrompt: string,
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 2000,
+      max_tokens: 4000,
       temperature: 0.8,
     }),
   });
@@ -207,7 +207,7 @@ async function callQwen(apiKey: string, model: string, systemPrompt: string, use
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 2000,
+      max_tokens: 4000,
       temperature: 0.8,
     }),
   });
@@ -385,11 +385,15 @@ ${selectedKeywords && selectedKeywords.length > 0 ? '- Also generate semantic va
 
     // Parse the response - try JSON first, then fallback to line-based parsing
     let titles: string[] = [];
+    let keywordVariations: Record<string, string[]> = {};
+    
     try {
+      // Try to extract JSON from response
       const jsonMatch = result.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsedResult = JSON.parse(jsonMatch[0]);
         titles = parsedResult.titles || [];
+        keywordVariations = parsedResult.keywordVariations || {};
       } else {
         throw new Error('No JSON found');
       }
@@ -401,32 +405,71 @@ ${selectedKeywords && selectedKeywords.length > 0 ? '- Also generate semantic va
         .map((line: string) => line.trim())
         .filter((line: string) => line.length > 0)
         // Remove common list prefixes like "1.", "- ", "* ", etc.
-        .map((line: string) => line.replace(/^[\d]+[\.\)\-\s]+/, '').replace(/^[\-\*\•]\s*/, '').trim())
-        // Filter out lines that look like instructions or metadata
+        .map((line: string) => {
+          // Remove numbering: "1. ", "1) ", "1- "
+          let cleaned = line.replace(/^[\d]+[\.\)\-]\s*/, '');
+          // Remove bullet points: "- ", "* ", "• "
+          cleaned = cleaned.replace(/^[\-\*\•]\s*/, '');
+          // Remove quotes if the entire line is quoted
+          cleaned = cleaned.replace(/^["'](.*)["']$/, '$1');
+          return cleaned.trim();
+        })
+        // Filter out lines that look like instructions, metadata, or JSON artifacts
         .filter((line: string) => {
           const lower = line.toLowerCase();
-          return !lower.startsWith('here are') && 
-                 !lower.startsWith('here\'s') &&
-                 !lower.includes('article title') &&
-                 !lower.includes('titles:') &&
-                 !lower.startsWith('{') &&
-                 !lower.startsWith('}') &&
-                 !lower.startsWith('"titles"') &&
-                 line.length > 10 && 
-                 line.length < 200;
+          // Exclude common instruction phrases
+          if (lower.startsWith('here are') || 
+              lower.startsWith('here\'s') ||
+              lower.startsWith('berikut') ||
+              lower.includes('article title') ||
+              lower.includes('judul artikel') ||
+              lower.includes('titles:') ||
+              lower.includes('judul:')) {
+            return false;
+          }
+          // Exclude JSON artifacts
+          if (line.startsWith('{') || 
+              line.startsWith('}') || 
+              line.startsWith('[') || 
+              line.startsWith(']') ||
+              line.startsWith('"titles"') ||
+              line.startsWith('"keywordVariations"')) {
+            return false;
+          }
+          // Must be reasonable length for a title
+          if (line.length < 10 || line.length > 250) {
+            return false;
+          }
+          // Should not be just a keyword or single word
+          if (line.split(' ').length < 3) {
+            return false;
+          }
+          return true;
         });
       
-      titles = lines.slice(0, count);
+      titles = lines;
       console.log('Parsed titles from plain text:', titles);
     }
 
+    // Validate we got enough titles
     if (titles.length === 0) {
       throw new Error('No titles could be extracted from AI response');
     }
 
+    // If we got fewer titles than requested, log a warning but continue
+    if (titles.length < count) {
+      console.warn(`Warning: Only extracted ${titles.length} titles, but ${count} were requested`);
+    }
+
+    // If we got more titles than requested, trim to exact count
+    if (titles.length > count) {
+      console.log(`Trimming ${titles.length} titles to requested ${count}`);
+      titles = titles.slice(0, count);
+    }
+
     console.log(`Successfully extracted ${titles.length} titles`);
 
-    return new Response(JSON.stringify({ titles }), {
+    return new Response(JSON.stringify({ titles, keywordVariations }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

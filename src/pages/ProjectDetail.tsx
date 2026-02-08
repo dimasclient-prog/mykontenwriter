@@ -39,6 +39,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -57,6 +58,9 @@ import { AIProvider, AI_PROVIDER_NAMES, AI_MODELS } from '@/types/project';
 import { PersonaCard } from '@/components/PersonaCard';
 import { PersonaFormModal } from '@/components/PersonaFormModal';
 import { PersonaDetailModal } from '@/components/PersonaDetailModal';
+import { HCUAuditForm } from '@/components/HCUAuditForm';
+import { HCUAuditResultDisplay } from '@/components/HCUAuditResult';
+import { HCUAuditInput, HCUAuditResult } from '@/types/hcu-audit';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -125,6 +129,12 @@ export default function ProjectDetail() {
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [showPersonaDetailModal, setShowPersonaDetailModal] = useState(false);
   const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
+
+  // HCU Audit states
+  const [hcuAuditResults, setHcuAuditResults] = useState<HCUAuditResult[]>([]);
+  const [isSubmittingAudit, setIsSubmittingAudit] = useState(false);
+  const [showAuditForm, setShowAuditForm] = useState(false);
+  const [selectedAuditResult, setSelectedAuditResult] = useState<HCUAuditResult | null>(null);
 
   // Initialize local state when project changes
   useEffect(() => {
@@ -668,6 +678,37 @@ export default function ProjectDetail() {
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
+  // HCU Audit handler
+  const handleSubmitAudit = async (input: HCUAuditInput) => {
+    setIsSubmittingAudit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('calculate-hcu-score', {
+        body: {
+          input,
+          projectId: project.id,
+        },
+      });
+
+      if (error) {
+        console.error('HCU audit error:', error);
+        toast.error('Failed to calculate HCU score');
+        return;
+      }
+
+      if (data?.result) {
+        setHcuAuditResults([data.result, ...hcuAuditResults]);
+        setSelectedAuditResult(data.result);
+        setShowAuditForm(false);
+        toast.success('HCU Audit completed successfully!');
+      }
+    } catch (err) {
+      console.error('HCU audit error:', err);
+      toast.error('Failed to calculate HCU score');
+    } finally {
+      setIsSubmittingAudit(false);
+    }
+  };
+
   const getStatusIcon = (status: Article['status']) => {
     switch (status) {
       case 'completed':
@@ -761,6 +802,7 @@ export default function ProjectDetail() {
           </TabsTrigger>
           <TabsTrigger value="strategy">Market Insight</TabsTrigger>
           <TabsTrigger value="articles">Articles ({project.articles.length})</TabsTrigger>
+          <TabsTrigger value="hcu-audit">HCU Audit</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -1380,6 +1422,149 @@ export default function ProjectDetail() {
                 })
             )}
           </div>
+        </TabsContent>
+
+        {/* HCU Audit Tab */}
+        <TabsContent value="hcu-audit" className="space-y-6">
+          {!showAuditForm && !selectedAuditResult && hcuAuditResults.length === 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  HCU Audit
+                </CardTitle>
+                <CardDescription>
+                  Analyze your content for Google's Helpful Content Update compliance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                    <BarChart3 className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Audit Konten Anda</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto mb-6">
+                    Analisis konten Anda berdasarkan Google's Helpful Content Update guidelines untuk memastikan artikel Anda dioptimalkan untuk ranking pencarian.
+                  </p>
+                  <Button onClick={() => setShowAuditForm(true)} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Mulai Audit Baru
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {showAuditForm && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Form Audit HCU</h3>
+                  <p className="text-sm text-muted-foreground">Isi form di bawah untuk mengaudit konten Anda</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowAuditForm(false);
+                    if (hcuAuditResults.length > 0) {
+                      setSelectedAuditResult(hcuAuditResults[0]);
+                    }
+                  }}
+                >
+                  Batal
+                </Button>
+              </div>
+              <HCUAuditForm 
+                onSubmit={handleSubmitAudit}
+                isSubmitting={isSubmittingAudit}
+              />
+            </div>
+          )}
+
+          {selectedAuditResult && !showAuditForm && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Hasil Audit</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {hcuAuditResults.length} audit tersimpan
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {hcuAuditResults.length > 1 && (
+                    <Select
+                      value={selectedAuditResult.id}
+                      onValueChange={(id) => {
+                        const result = hcuAuditResults.find(r => r.id === id);
+                        if (result) setSelectedAuditResult(result);
+                      }}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Pilih audit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {hcuAuditResults.map((result, index) => (
+                          <SelectItem key={result.id} value={result.id}>
+                            Audit #{hcuAuditResults.length - index} - {new Date(result.createdAt).toLocaleDateString('id-ID')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Button onClick={() => setShowAuditForm(true)} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Audit Baru
+                  </Button>
+                </div>
+              </div>
+              <HCUAuditResultDisplay result={selectedAuditResult} />
+            </div>
+          )}
+
+          {!showAuditForm && !selectedAuditResult && hcuAuditResults.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Riwayat Audit</CardTitle>
+                <CardDescription>{hcuAuditResults.length} audit tersimpan</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {hcuAuditResults.map((result, index) => (
+                    <div
+                      key={result.id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => setSelectedAuditResult(result)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{result.input.contentTitle}</h4>
+                          <p className="text-sm text-muted-foreground">{result.input.contentUrl}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant="outline">
+                              Skor: {result.finalScore.toFixed(1)}/5
+                            </Badge>
+                            <Badge variant="outline" className={
+                              result.status === 'safe' ? 'bg-success/20 text-success' :
+                              result.status === 'needs-improvement' ? 'bg-warning/20 text-warning' :
+                              'bg-destructive/20 text-destructive'
+                            }>
+                              {result.status === 'safe' ? 'Aman' : 
+                               result.status === 'needs-improvement' ? 'Perlu Perbaikan' : 
+                               'Risiko Tinggi'}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(result.createdAt).toLocaleDateString('id-ID')}
+                            </span>
+                          </div>
+                        </div>
+                        <Eye className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Settings Tab */}
