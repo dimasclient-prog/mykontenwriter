@@ -357,9 +357,9 @@ TARGET PERSONA:
 Name: ${personaData.name}
 Role: ${personaData.role || 'Target Customer'}
 Demographics: ${personaData.demographics || 'N/A'}
-Pain Points: ${personaData.painPoints.join(', ')}
-Goals: ${personaData.goals.join(', ')}
-Challenges: ${personaData.challenges.join(', ')}
+Pain Points: ${(personaData.painPoints || personaData.pain_points || []).join(', ') || 'N/A'}
+Goals: ${(personaData.goals || []).join(', ') || 'N/A'}
+Challenges: ${(personaData.challenges || personaData.concerns || []).join(', ') || personaData.concerns || 'N/A'}
 
 CONTENT TO ANALYZE:
 ${pageContent}
