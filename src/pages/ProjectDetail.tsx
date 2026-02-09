@@ -27,7 +27,8 @@ import {
   TrendingUp,
   Layers,
   Share2,
-  User
+  User,
+  Network
 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -61,6 +62,7 @@ import { PersonaDetailModal } from '@/components/PersonaDetailModal';
 import { HCUAuditForm } from '@/components/HCUAuditForm';
 import { HCUAuditResultDisplay } from '@/components/HCUAuditResult';
 import { HCUAuditInput, HCUAuditResult } from '@/types/hcu-audit';
+import { TopicalCoverageTab } from '@/components/topical-coverage/TopicalCoverageTab';
 
 export default function ProjectDetail() {
   const { projectId } = useParams();
@@ -850,6 +852,10 @@ export default function ProjectDetail() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="topical-coverage" className="gap-1">
+            <Network className="w-3 h-3" />
+            Topical Coverage
+          </TabsTrigger>
           <TabsTrigger value="keywords" className="gap-1">
             <Key className="w-3 h-3" />
             Keywords ({(localProject.keywords || []).length})
@@ -1076,6 +1082,11 @@ export default function ProjectDetail() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Topical Coverage Tab */}
+        <TabsContent value="topical-coverage" className="space-y-6">
+          <TopicalCoverageTab project={project} />
         </TabsContent>
 
         {/* Keywords Tab */}

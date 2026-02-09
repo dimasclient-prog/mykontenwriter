@@ -321,6 +321,53 @@ export type Database = {
         }
         Relationships: []
       }
+      topical_coverage: {
+        Row: {
+          core_topic: Json
+          coverage_gaps: Json
+          created_at: string
+          id: string
+          project_id: string
+          semantic_network: Json
+          topical_expansion: Json
+          url_structure: Json
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          core_topic?: Json
+          coverage_gaps?: Json
+          created_at?: string
+          id?: string
+          project_id: string
+          semantic_network?: Json
+          topical_expansion?: Json
+          url_structure?: Json
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          core_topic?: Json
+          coverage_gaps?: Json
+          created_at?: string
+          id?: string
+          project_id?: string
+          semantic_network?: Json
+          topical_expansion?: Json
+          url_structure?: Json
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topical_coverage_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
